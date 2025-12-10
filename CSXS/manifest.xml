@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest
+    Version="4.0"
+    ExtensionBundleId="com.PSG.Nova"
+    ExtensionBundleVersion="1.0.0"
+    ExtensionBundleName="Nova"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+    <ExtensionList>
+        <Extension Id="com.PSG.Nova.panel" Version="1.0" />
+    </ExtensionList>
+
+    <ExecutionEnvironment>
+        <HostList>
+            <!-- AE 2024 -->
+            <Host Name="AEFT" Version="24.0" />
+        </HostList>
+
+        <LocaleList>
+            <Locale Code="All" />
+        </LocaleList>
+
+        <!-- Keep CEP runtime aligned with your earlier setup.
+             If you later confirm CEP 11 for AE 2024, change to Version="11.0". -->
+        <RequiredRuntimeList>
+            <RequiredRuntime Name="CSXS" Version="4.0" />
+        </RequiredRuntimeList>
+    </ExecutionEnvironment>
+
+    <DispatchInfoList>
+        <Extension Id="com.PSG.Nova.panel">
+            <DispatchInfo>
+                <Resources>
+                    <!-- Your HTML entry -->
+                    <MainPath>./index.html</MainPath>
+                    <!-- Load the core JSX on host side so its functions exist immediately -->
+                    <ScriptPath>./jsx/CrosswordMapper.jsx</ScriptPath>
+                </Resources>
+
+                <Lifecycle>
+                    <AutoVisible>true</AutoVisible>
+                </Lifecycle>
+
+                <!-- Enable Chromium remote debugging (pairs with .debug) -->
+                <CEFCommandLine>
+                    <Parameter>--allow-file-access-from-files</Parameter>
+                    <Parameter>--disable-web-security</Parameter>
+                    <Parameter>--remote-debugging-port=8090</Parameter>
+                </CEFCommandLine>
+
+                <UI>
+                    <Type>Panel</Type>
+                    <Menu>Nova</Menu>
+                    <Geometry>
+                        <Size>
+                            <Height>100</Height>
+                            <Width>490</Width>
+                        </Size>
+                        <MinSize>
+                            <Height>100</Height>
+                            <Width>490</Width>
+                        </MinSize>
+                        <MaxSize>
+                            <Height>100</Height>
+                            <Width>490</Width>
+                        </MaxSize>
+                    </Geometry>
+                </UI>
+            </DispatchInfo>
+        </Extension>
+    </DispatchInfoList>
+</ExtensionManifest>
