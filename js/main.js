@@ -1,54 +1,64 @@
-/* PSG / Nova - main.js (bridge & guards) */
+/* PSG / Nova - main.js (bridge & loaders) */
 (function () {
-  // Defensive CSInterface mock (in case your HTML is tested outside AE)
+  // 1. Initialize CSInterface
   if (typeof window.CSInterface === "undefined") {
-    console.warn("[Nova] CSInterface not found; applying secondary mock.");
-    window.CSInterface = function () {
-      this.evalScript = function (script, cb) {
-        console.log("[Nova][MOCK] evalScript =>", script);
-        if (typeof cb === "function") setTimeout(() => cb("Simulated Success (Mock Environment)"), 50);
+      console.warn("[Nova] CSInterface not found; applying mock.");
+      window.CSInterface = function () {
+          this.evalScript = function (script, cb) {
+              console.log("[Nova][MOCK] evalScript =>", script);
+              if (cb) setTimeout(() => cb("MOCK_SUCCESS"), 50);
+          };
+          this.getSystemPath = function() { return "/MOCK_PATH"; };
       };
-    };
+      window.SystemPath = { EXTENSION: "EXTENSION" };
   }
 
-  // Ensure a single shared instance for convenience
   if (typeof window.csInterface === "undefined") {
-    try { window.csInterface = new CSInterface(); } catch (e) {}
+      try { window.csInterface = new CSInterface(); } catch (e) {}
   }
 
-  // $._ext shim so evalFile & batch entry point calls are always safe
-  if (typeof $ === "undefined") window.$ = {};
-  if (typeof $._ext === "undefined") $._ext = {};
-
-  // Safe evalFile: try to load, otherwise no-op (prevents your loadJSX alert loop)
-  $._ext.evalFile = $._ext.evalFile || function (path) {
-    try {
-      var f = new File(path);
-      if (f.exists) {
-        $.evalFile(f);
-        return "OK";
-      } else {
-        // If the requested path doesn't exist, that's fine because
-        // CrosswordMapper.jsx is already loaded via ScriptPath in manifest.
-        return "Skipped (file not found, but core JSX should already be loaded).";
-      }
-    } catch (e) {
-      return "Error: " + e.message;
-    }
-  };
-
-  // Optional helper if you ever want to call from elsewhere
-  window.NovaBridge = {
-    sendBatchToAE: function (dataArray) {
+  // 2. Explicitly Load the Host Script (FilePicker.jsx)
+  // This fixes "Host script returned no data" by forcing AE to read the file
+  function loadHostScript() {
       try {
-        const json = JSON.stringify(dataArray).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        const cmd = `applyBatchQA("${json}");`;
-        (window.csInterface || new CSInterface()).evalScript(cmd, function (res) {
-          console.log("[Nova] AE returned:", res);
-        });
-      } catch (e) {
-        console.error("[Nova] Failed to send batch:", e);
+          var csi = new CSInterface();
+          var extensionRoot = csi.getSystemPath(SystemPath.EXTENSION);
+          
+          // Assume the file is in a 'jsx' folder inside the extension
+          // Adjust this path if your file structure is different (e.g., just "/FilePicker.jsx")
+          var scriptPath = extensionRoot + "/jsx/FilePicker.jsx";
+          
+          // Normalize path for ExtendScript (forward slashes)
+          var safePath = scriptPath.replace(/\\/g, "/");
+
+          console.log("[Nova] Attempting to load host script at:", safePath);
+
+          var loadCmd = '$.evalFile("' + safePath + '")';
+          
+          csi.evalScript(loadCmd, function(result) {
+              // If the first attempt fails (maybe it's in the root, not jsx folder), try root
+              if (!result || result === "undefined" || result.toString().indexOf("Error") !== -1) {
+                  console.warn("[Nova] Failed to load from /jsx/, trying root...");
+                  var rootPath = extensionRoot + "/FilePicker.jsx";
+                  var safeRoot = rootPath.replace(/\\/g, "/");
+                  csi.evalScript('$.evalFile("' + safeRoot + '")', function(res2){
+                      if(!res2 || res2.toString().indexOf("Error") !== -1) {
+                          console.error("[Nova] CRITICAL: Could not load FilePicker.jsx. Check file location.");
+                      } else {
+                          console.log("[Nova] Loaded FilePicker.jsx from root.");
+                      }
+                  });
+              } else {
+                  console.log("[Nova] FilePicker.jsx loaded successfully.");
+              }
+          });
+          
+      } catch(e) {
+          console.error("[Nova] Exception loading host script:", e);
       }
-    }
-  };
+  }
+
+  // Execute Loader
+  loadHostScript();
+
 })();

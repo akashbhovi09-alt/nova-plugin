@@ -10,6 +10,10 @@ if (typeof CSInterface === 'undefined') {
                 else if(script.includes("readBase64File")) cb("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
                 else if(script.includes("readTextFile") && script.includes("presets_index.json")) cb("[]");
                 else if(script.includes("readTextFile")) cb('{"id":"mock","name":"Mock","placeholders":{"data":{},"images":[]}}');
+                // Grid Mocks
+                else if(script.includes("getGridFiles")) cb(JSON.stringify([{id:1, fileName:"1.png"}, {id:2, fileName:"2.png"}]));
+                else if(script.includes("saveSnapshot")) cb(JSON.stringify({status:"success", id: 3, fileName:"3.png"}));
+                else if(script.includes("deleteGridFile")) cb("SUCCESS");
                 else cb("[]");
             }, 100);
         }
@@ -23,12 +27,11 @@ const csInterface = new CSInterface();
 const TABS = { LOTSO: 'lotso', CONTENTS: 'contents', SETTINGS: 'settings' };
 const MAX_QUESTIONS = 6;
 let activeTab = TABS.CONTENTS;
-let activeGrid = 1;
+let activeGrid = null; // Changed to null initially
 let fileSelection = 'new';
 const panelStates = Array(MAX_QUESTIONS + 1).fill(false); // Index 1 through 6
 let isAutoFrenzy = false;
 let is60SecVid = false;
-let selectedGridImageBase64 = null; 
 
 
 // --- File System & Preset State (UPDATED) ---
@@ -36,6 +39,8 @@ let baseDirPath = null;
 let presetsIndex = [];
 let loadedPreset = null;
 let questionImages = {}; // Map<index, File> - Stores actual file objects for saving
+let availableGrids = []; // List of grids loaded from DTC_Grids
+let gridToDelete = null; // Temp store for delete modal
 
 
 // --- UTILS ---
@@ -63,8 +68,14 @@ function escapeForJSX(str) {
 function evalScriptPromise(script) {
     return new Promise((resolve, reject) => {
         csInterface.evalScript(script, res => {
-            if(res && res.startsWith("ERROR:")) reject(res);
-            else resolve(res);
+            // FIX: Handle empty or undefined responses safely
+            if (!res || res === "undefined" || res === "null") {
+                resolve(null);
+            } else if(res && res.startsWith("ERROR:")) {
+                reject(res);
+            } else {
+                resolve(res);
+            }
         });
     });
 }
@@ -75,17 +86,21 @@ window.onload = async () => {
     // 1. Initial Render of UI Components
     renderQuestionPanels();
     updateContentMode(true);
-    generateGridButtons();
+    // generateGridButtons(); // Wait for base path load
     setActiveTab(TABS.CONTENTS);
-    drawGrid(activeGrid);
 
     // 2. Try to restore stored path
     try {
         const path = await evalScriptPromise("$._ext.getStoredBasePath()");
         if(path && path !== "" && !path.startsWith("ERROR")) {
             await setBaseHandleAndInit(path);
+        } else {
+             generateGridButtons(); // Render empty state
         }
-    } catch(e) { console.log("No base path stored"); }
+    } catch(e) { 
+        console.log("No base path stored"); 
+        generateGridButtons();
+    }
 
     // 3. Bind Listener for Picking Folder
     const pickBtn = document.getElementById('pickBaseBtn');
@@ -99,19 +114,6 @@ window.onload = async () => {
             } catch(e) { alert(e); }
         });
     }
-
-    // 4. Grid File Upload Listener
-    const gridUpload = document.getElementById('grid-file-upload');
-    if (gridUpload) {
-        gridUpload.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => selectedGridImageBase64 = e.target.result.split(',')[1];
-                reader.readAsDataURL(file);
-            }
-        });
-    }
 };
 
 async function setBaseHandleAndInit(path) {
@@ -122,14 +124,16 @@ async function setBaseHandleAndInit(path) {
         label.title = path;
     }
     await loadIndex();
+    await loadGridsFromDisk(); // New function to load 1.png, 2.png...
 }
 
 
-// --- PRESET LOGIC (UPDATED) ---
+// --- PRESET LOGIC ---
 
 async function loadIndex() {
     try {
         const txt = await evalScriptPromise('$._ext.readTextFile("presets_index.json")');
+        if (!txt) { presetsIndex = []; return; }
         presetsIndex = (txt === "ERROR:INDEX_NOT_FOUND") ? [] : JSON.parse(txt);
     } catch(e) { presetsIndex = []; }
     renderPresetDropdownItems();
@@ -173,17 +177,14 @@ function togglePresetDropdown() {
     d.classList.toggle('opacity-0');
     d.classList.toggle('translate-y-2');
     
-    // Hide other modals
     document.getElementById('new-preset-modal').classList.add('hidden');
     document.getElementById('save-confirm-modal').classList.add('hidden');
 }
 
-
-// --- SAVE PRESET (NEW ROBUST LOGIC) ---
+// --- SAVE PRESET ---
 
 function openNewPresetModal() {
     if(!baseDirPath) return alert("Select Folder First");
-    // Close dropdown first
     const d = document.getElementById('preset-dropdown-menu');
     if(!d.classList.contains('hidden')) togglePresetDropdown();
 
@@ -202,11 +203,8 @@ async function saveNewPreset() {
     
     const id = newId();
     const folderName = `${id}_${slugify(name)}`;
-    
-    // 1. Gather Data from Form
     const formState = getCurrentFormData();
     
-    // 2. Copy Images (Physical Copy)
     const imagesMeta = [];
     const imageFiles = Object.keys(questionImages).map(k => ({ slot: parseInt(k), file: questionImages[k] })).filter(i => i.file);
 
@@ -214,19 +212,15 @@ async function saveNewPreset() {
         if(file.path) {
             const sourcePath = escapeForJSX(file.path);
             const destRelPath = escapeForJSX(`${folderName}/assets/${file.name}`);
-            
             try {
                 const res = await evalScriptPromise(`$._ext.copyFile("${sourcePath}", "${destRelPath}")`);
                 if(res === "SUCCESS") {
                     imagesMeta.push({ slot, fileName: file.name, relPath: `assets/${file.name}` });
-                } else {
-                    console.error(`Copy failed for slot ${slot}: ${res}`);
                 }
             } catch(e) { console.error("Copy error: " + e); }
         }
     }
 
-    // 3. Prepare JSON Structure
     const presetData = {
         id, name,
         createdAt: nowISO(),
@@ -237,19 +231,16 @@ async function saveNewPreset() {
         }
     };
 
-    // 4. Save JSON File
     const jsonStr = escapeForJSX(JSON.stringify(presetData));
     const jsonPath = escapeForJSX(`${folderName}/preset.json`);
     
     try {
         await evalScriptPromise(`$._ext.writeTextFile("${jsonPath}", '${jsonStr}')`);
         
-        // 5. Update Index
         presetsIndex.push({ id, name, folder: folderName, updatedAt: presetData.updatedAt });
         const idxStr = escapeForJSX(JSON.stringify(presetsIndex));
         await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${idxStr}')`);
         
-        // 6. Finish
         loadedPreset = { ...presetData, folder: folderName };
         closeNewPresetModal();
         renderPresetDropdownItems();
@@ -260,12 +251,10 @@ async function saveNewPreset() {
     }
 }
 
-
-// --- SAVE CHANGES (NEW ROBUST LOGIC) ---
+// --- SAVE CHANGES ---
 
 function saveChangesConfirmation() {
     if (!loadedPreset) return;
-    // Close dropdown
     const d = document.getElementById('preset-dropdown-menu');
     if(!d.classList.contains('hidden')) togglePresetDropdown();
 
@@ -286,23 +275,17 @@ async function saveChangesToPreset() {
     const folderName = entry.folder;
     const formState = getCurrentFormData();
     
-    // Logic: Keep existing images unless replaced, Add new ones.
     let currentImages = loadedPreset.placeholders?.images || [];
-    
-    // Process currently selected images in UI
     const imageFiles = Object.keys(questionImages).map(k => ({ slot: parseInt(k), file: questionImages[k] })).filter(i => i.file);
 
     for (const { slot, file } of imageFiles) {
         if(file.path) {
             const sourcePath = escapeForJSX(file.path);
             const destRelPath = escapeForJSX(`${folderName}/assets/${file.name}`);
-            
             try {
                 const res = await evalScriptPromise(`$._ext.copyFile("${sourcePath}", "${destRelPath}")`);
                 if(res === "SUCCESS") {
-                    // Remove old entry for this slot if exists
                     currentImages = currentImages.filter(img => img.slot !== slot);
-                    // Add new entry
                     currentImages.push({ slot, fileName: file.name, relPath: `assets/${file.name}` });
                 }
             } catch(e) { console.error("Copy error: " + e); }
@@ -317,32 +300,25 @@ async function saveChangesToPreset() {
             images: currentImages
         }
     };
-    // Ensure we don't write the 'folder' property into the JSON file
     delete updatedData.folder; 
 
-    // Save JSON
     const jsonStr = escapeForJSX(JSON.stringify(updatedData));
     const jsonPath = escapeForJSX(`${folderName}/preset.json`);
     
     try {
         await evalScriptPromise(`$._ext.writeTextFile("${jsonPath}", '${jsonStr}')`);
-        
-        // Update Index Timestamp
         entry.updatedAt = updatedData.updatedAt;
         const idxStr = escapeForJSX(JSON.stringify(presetsIndex));
         await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${idxStr}')`);
-        
         loadedPreset = { ...updatedData, folder: folderName };
         closeSaveConfirmModal();
         alert("Changes saved successfully!");
     } catch(e) { alert("Save failed: " + e); }
 }
 
-
-// --- SELECT PRESET & LOADING (UPDATED) ---
+// --- SELECT PRESET & LOADING ---
 
 async function selectPreset(id) {
-    // Close dropdown
     const d = document.getElementById('preset-dropdown-menu');
     if(!d.classList.contains('hidden')) togglePresetDropdown();
 
@@ -352,28 +328,20 @@ async function selectPreset(id) {
     try {
         const jsonPath = escapeForJSX(`${entry.folder}/preset.json`);
         const txt = await evalScriptPromise(`$._ext.readTextFile("${jsonPath}")`);
-        
-        if(txt.startsWith("ERROR:")) return alert("Error reading preset: " + txt);
+        if(!txt || txt.startsWith("ERROR:")) return alert("Error reading preset: " + txt);
 
         const json = JSON.parse(txt);
         loadedPreset = { ...json, folder: entry.folder }; 
-        
-        // Load Data into UI
         loadDataIntoForm(json.placeholders?.data, json.placeholders?.images || [], entry.folder);
-        renderPresetDropdownItems(); // Re-render to show selection highlight
-
+        renderPresetDropdownItems();
     } catch(e) { alert("Load failed: " + e); }
 }
 
 async function loadDataIntoForm(data, imagePlaceholders = [], folderName) {
-    // Reset Image State
     questionImages = {};
-    
-    // Clear all fields first (optional, but good for cleanliness)
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         handleImageLoad(null, i); 
     }
-
     if (!data) return;
 
     const questions = parseLines(data.questions);
@@ -392,24 +360,18 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folderName) {
         if (g) g.value = numbers[i-1] || '';
         if (f) f.value = frenzies[i] || '';
 
-        // --- IMAGE LOADING (FAST FILE:// URL LOGIC) ---
         const savedImg = imagePlaceholders.find(p => p.slot === i);
         const preview = document.getElementById(`image-preview-${i}`);
         const overlay = document.getElementById(`image-overlay-${i}`);
 
         if (savedImg && savedImg.fileName && baseDirPath) {
-            // Construct file:// URL
-            // Ensure slashes are forward slashes for URL compatibility
             const root = baseDirPath.replace(/\\/g, '/');
             const relative = `${folderName}/${savedImg.relPath || ('assets/' + savedImg.fileName)}`;
-            
-            // Ensure root starts with / if on Mac/Unix, or handle drive letters for Windows
             const cleanRoot = root.startsWith('/') ? root : '/' + root;
             const fullPath = `file://${cleanRoot}/${relative}`;
             
             preview.src = fullPath;
             preview.classList.remove('hidden');
-            
             if(overlay) {
                 overlay.classList.add('bg-slate-900/50');
                 overlay.classList.remove('bg-slate-900/70');
@@ -421,28 +383,12 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folderName) {
                     <span class="text-xs text-green-400 font-semibold truncate max-w-full">${savedImg.fileName}</span>
                 `;
             }
-            
-            preview.onerror = () => {
-                preview.classList.add('hidden');
-                if(overlay) overlay.innerHTML = `<span class="text-xs text-red-400">Image Missing</span>`;
-            };
         } else {
-            // No image for this slot
-            if(preview) {
-                preview.src = "";
-                preview.classList.add('hidden');
-            }
+            if(preview) { preview.src = ""; preview.classList.add('hidden'); }
             if(overlay) {
                 overlay.classList.remove('bg-slate-900/50');
                 overlay.classList.add('bg-slate-900/70');
-                overlay.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mb-1">
-                        <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                        <circle cx="9" cy="9" r="2"/>
-                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-                    </svg>
-                    <span class="text-xs font-semibold">Choose Image</span>
-                `;
+                overlay.innerHTML = `<span class="text-xs font-semibold">Choose Image</span>`;
             }
         }
     }
@@ -453,20 +399,17 @@ function getCurrentFormData() {
     const answers = [];
     const numbers = [];
     const frenzy = {};
-    
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         const q = document.getElementById(`question-textarea-${i}`);
         const a = document.getElementById(`answer-${i}`);
         const g = document.getElementById(`grid-num-${i}`);
         const f = document.getElementById(`frenzies-${i}`);
 
-        // Even empty strings are pushed to maintain index alignment for lines
         if (q) questions.push(q.value.trim());
         if (a) answers.push(a.value.trim());
-        if (g && g.value.trim()) numbers.push(g.value.trim()); // Only push if exists for grids
+        if (g && g.value.trim()) numbers.push(g.value.trim());
         if (f && f.value.trim()) frenzy[i] = f.value.trim();
     }
-    
     return {
         questions: questions.join('\n'),
         answers: answers.join('\n'),
@@ -476,19 +419,14 @@ function getCurrentFormData() {
 }
 
 
-// --- UI HANDLERS (ORIGINAL + NEW IMAGE HANDLING) ---
+// --- UI HANDLERS ---
 
 function handleImageSelection(event, index) {
     const file = event.target.files[0];
     if(!file) return;
-    
-    // Store file for saving later
     questionImages[index] = file;
-
     const preview = document.getElementById(`image-preview-${index}`);
     const overlay = document.getElementById(`image-overlay-${index}`);
-    
-    // Local preview (immediate feedback)
     const reader = new FileReader();
     reader.onload = (e) => {
         preview.src = e.target.result;
@@ -499,36 +437,24 @@ function handleImageSelection(event, index) {
         }
     };
     reader.readAsDataURL(file);
-    event.target.value = null; // allow re-select
+    event.target.value = null; 
 }
 
 function handleImageLoad(file, index) {
-    // Helper to clear images visually when needed
     const previewElement = document.getElementById(`image-preview-${index}`);
     const overlayElement = document.getElementById(`image-overlay-${index}`);
-    
     if(!file) {
-        if(previewElement) {
-            previewElement.src = "";
-            previewElement.classList.add('hidden');
-        }
+        if(previewElement) { previewElement.src = ""; previewElement.classList.add('hidden'); }
         if(overlayElement) {
             overlayElement.classList.remove('bg-slate-900/50');
             overlayElement.classList.add('bg-slate-900/70');
-            overlayElement.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mb-1">
-                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                    <circle cx="9" cy="9" r="2"/>
-                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-                </svg>
-                <span class="text-xs font-semibold">Choose Image</span>
-            `;
+            overlayElement.innerHTML = `<span class="text-xs font-semibold">Choose Image</span>`;
         }
     }
 }
 
 
-// --- TAB & CONTENT LOGIC (RESTORED FROM ORIGINAL) ---
+// --- TAB & CONTENT LOGIC ---
 
 function setActiveTab(tabId) {
     activeTab = tabId;
@@ -560,15 +486,10 @@ function updateContentMode(force) {
 function handleCheckboxChange(is60Sec) {
     const afCheckbox = document.getElementById('checkbox-auto-frenzy');
     const vidCheckbox = document.getElementById('checkbox-60-sec-vid');
-
     if (is60Sec) {
-        if(vidCheckbox.checked) {
-            if(afCheckbox) afCheckbox.checked = false;
-        }
+        if(vidCheckbox.checked) { if(afCheckbox) afCheckbox.checked = false; }
     } else {
-        if(afCheckbox.checked) {
-            if(vidCheckbox) vidCheckbox.checked = false;
-        }
+        if(afCheckbox.checked) { if(vidCheckbox) vidCheckbox.checked = false; }
     }
     updateContentMode(false);
 }
@@ -583,10 +504,7 @@ function renderQuestionPanels() {
 }
 
 function generateQuestionPanel(index) {
-    // Determine collapsed state
     const collapsedClass = panelStates[index] ? 'collapsed' : '';
-    
-    // Frenzy HTML
     const frenzyInputHTML = `
         <div id="frenzy-wrapper-${index}">
             <div class="frenzy-content">
@@ -604,13 +522,10 @@ function generateQuestionPanel(index) {
     <div id="wrapper-${index}" class="question-panel-wrapper">
         <div id="question-${index}" class="question-panel card-bg p-1 rounded-xl shadow-2xl transition duration-300 w-full max-w-3xl min-panel-width ${collapsedClass}">
             <input type="file" id="image-file-input-${index}" accept="image/*" class="hidden" onchange="handleImageSelection(event, ${index})">
-
             <div class="flex items-center justify-between cursor-pointer" onclick="toggleQuestion('question-${index}', ${index})">
                 <div class="flex items-center space-x-3">
                     <button class="toggle-icon text-gray-400 hover:text-white focus:outline-none p-0.5 rounded-full bg-slate-900">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                            <path d="M6 9l6 6 6-6"/>
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M6 9l6 6 6-6"/></svg>
                     </button>
                     <h2 class="text-sm font-semibold text-gray-100">Question ${index} :</h2>
                 </div>
@@ -622,18 +537,9 @@ function generateQuestionPanel(index) {
                         <textarea id="question-textarea-${index}" rows="4" placeholder="Enter your question" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500 resize-none"></textarea>
                     </div>
                     <div class="w-1/4 flex-shrink-0">
-                        <div id="image-box-${index}" class="relative aspect-square w-full rounded-lg border-2 border-gray-700 bg-slate-900 overflow-hidden group cursor-pointer"
-                             onclick="document.getElementById('image-file-input-${index}').click(); event.stopPropagation();">
-
-                            <img id="image-preview-${index}" src="" alt="Selected image thumbnail" class="absolute inset-0 w-full h-full object-cover hidden">
-
-                            <div id="image-overlay-${index}" class="absolute inset-0 flex flex-col items-center justify-center text-center p-2 z-10
-                                 bg-slate-900/70 text-gray-400 group-hover:bg-slate-900/90 transition duration-150">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mb-1">
-                                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                                    <circle cx="9" cy="9" r="2"/>
-                                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-                                </svg>
+                        <div id="image-box-${index}" class="relative aspect-square w-full rounded-lg border-2 border-gray-700 bg-slate-900 overflow-hidden group cursor-pointer" onclick="document.getElementById('image-file-input-${index}').click(); event.stopPropagation();">
+                            <img id="image-preview-${index}" src="" alt="Selected image" class="absolute inset-0 w-full h-full object-cover hidden">
+                            <div id="image-overlay-${index}" class="absolute inset-0 flex flex-col items-center justify-center text-center p-2 z-10 bg-slate-900/70 text-gray-400 group-hover:bg-slate-900/90 transition duration-150">
                                 <span class="text-xs font-semibold">Choose Image</span>
                             </div>
                         </div>
@@ -642,12 +548,12 @@ function generateQuestionPanel(index) {
                 <div id="input-grid-${index}" class="grid gap-2 mt-1 grid-cols-3">
                     <div>
                         <label for="answer-${index}" class="block text-xs font-medium mb-1 text-gray-400">Answer</label>
-                        <input type="text" id="answer-${index}" placeholder="Enter correct answer" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
+                        <input type="text" id="answer-${index}" placeholder="Enter answer" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
                     </div>
                     ${frenzyInputHTML}
                     <div>
                         <label for="grid-num-${index}" class="block text-xs font-medium mb-1 text-gray-400">Grid Num</label>
-                        <input type="text" id="grid-num-${index}" placeholder="Ex : 10a or 10d" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
+                        <input type="text" id="grid-num-${index}" placeholder="Ex : 10a" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
                     </div>
                 </div>
             </div>
@@ -658,16 +564,13 @@ function generateQuestionPanel(index) {
 
 function updatePanelVisibilityAndInputs() {
     const totalQuestions = is60SecVid ? MAX_QUESTIONS : 4;
-
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         const wrapper = document.getElementById(`wrapper-${i}`);
         if (!wrapper) continue;
-
         const isVisible = i <= totalQuestions;
         const isLastVisible = i === totalQuestions;
         const showFrenzies = !isLastVisible;
 
-        // Visibility
         if (isVisible) {
             wrapper.classList.remove('hidden-panel');
             wrapper.style.marginBottom = '1.5rem';
@@ -676,7 +579,6 @@ function updatePanelVisibilityAndInputs() {
             wrapper.style.marginBottom = '0';
         }
 
-        // Frenzy Visibility
         const frenzyWrapper = document.getElementById(`frenzy-wrapper-${i}`);
         if (frenzyWrapper) {
             const content = frenzyWrapper.querySelector('.frenzy-content');
@@ -686,13 +588,9 @@ function updatePanelVisibilityAndInputs() {
                 placeholder.classList.add('hidden');
             } else {
                 content.classList.add('hidden');
-                // show placeholder only if panel is visible but frenzy shouldn't be
-                // actually in this design we might just hide the input
                 placeholder.classList.add('hidden'); 
             }
         }
-
-        // Frenzy Disabled State (Auto Frenzy)
         const frenzyInput = document.getElementById(`frenzies-${i}`);
         if (frenzyInput) {
             frenzyInput.disabled = isAutoFrenzy;
@@ -710,63 +608,43 @@ function updatePanelVisibilityAndInputs() {
 function toggleQuestion(panelId, index) {
     const panel = document.getElementById(panelId);
     panel.classList.toggle('collapsed');
-    // Update State
     if (typeof index !== 'undefined') {
         panelStates[index] = panel.classList.contains('collapsed');
     }
 }
 
 
-// --- GRID LOGIC (RESTORED FROM ORIGINAL) ---
+// =========================================================
+// GRID MANAGEMENT (NEW LOGIC)
+// =========================================================
 
-const gridTemplates = {
-    1: { name: 'Grid 1', data: [0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,1,1,1,0,1,1,1,0,1,1,1,0,1, 0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, ], numbers: { 0: '1', 1: '2', 4: '3', 7: '4', 11: '5', 14: '6', 15: '7', 18: '8', 21: '9', 25: '10', 30: '11', 35: '12', 39: '13', 42: '14', 46: '15', 51: '16', 55: '17', 60: '18', 64: '19', 68: '20' }, imageUrl: null },
-    2: { name: 'Grid 2', data: [0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1, 0,0,0,1,0,0,0,1,0,0,0,1,0,0, 0,1,0,1,0,1,0,1,0,1,0,1,0,1,], numbers: { 0: '1', 3: '2', 6: '3', 9: '4', 12: '5', 14: '6', 16: '7', 18: '8', 21: '9', 24: '10' }, imageUrl: null },
-    3: { name: 'Grid 3', data: Array(14 * 14).fill(0), numbers: {}, imageUrl: null }
-};
-
-function drawGrid(gridId) {
-    const gridContainer = document.getElementById('current-grid');
-    const template = gridTemplates[gridId];
-    activeGrid = gridId;
-
-    if (!gridContainer || !template) return;
-
-    // 1. Check for Image URL
-    if (template.imageUrl) {
-        gridContainer.innerHTML = `<img src="${template.imageUrl}" alt="Custom Grid Image" class="absolute inset-0 w-full h-full object-contain">`;
-        gridContainer.classList.remove('crossword-grid', 'grid');
-    } else {
-        // 2. Fallback to grid
-        gridContainer.classList.add('crossword-grid', 'grid');
-        let gridHtml = '';
-        const dataLength = Array.isArray(template.data) ? template.data.length : 0;
-
-        for(let i = 0; i < dataLength; i++) {
-            const isDark = template.data[i] === 1;
-            const number = template.numbers[i] || '';
-
-            gridHtml += `
-                <div class="grid-cell relative ${isDark ? 'dark-cell' : 'bg-white'}">
-                    ${number ? `<span class="cell-num">${number}</span>` : ''}
-                </div>
-            `;
+async function loadGridsFromDisk() {
+    try {
+        if(!baseDirPath) return;
+        const res = await evalScriptPromise("$._ext.getGridFiles()");
+        // Handle case where res is null or undefined string
+        if(res && !res.startsWith("ERROR") && res !== "undefined") {
+            availableGrids = JSON.parse(res);
+        } else {
+            availableGrids = [];
         }
-        gridContainer.innerHTML = gridHtml;
+    } catch(e) { 
+        console.warn("Grid Load Error:", e);
+        availableGrids = []; 
     }
-
-    // 3. Update Button Styles
-    document.querySelectorAll('#grid-buttons button').forEach(button => {
-        const buttonText = button.innerText.trim();
-        if (!isNaN(parseInt(buttonText))) {
-            button.classList.remove('bg-blue-600');
-            button.classList.add('bg-blue-500');
-            if (parseInt(buttonText) == gridId) {
-                button.classList.remove('bg-blue-500');
-                button.classList.add('bg-blue-600'); 
-            }
+    generateGridButtons();
+    
+    // Auto-select first grid if none selected or if previously selected is gone
+    if (availableGrids.length > 0) {
+        if (!activeGrid || !availableGrids.find(g => g.id === activeGrid)) {
+            // Default to first if current active is missing
+            drawGrid(availableGrids[0].id);
+        } else {
+            drawGrid(activeGrid); // Refresh view
         }
-    });
+    } else {
+        document.getElementById('current-grid').innerHTML = '<span class="text-gray-500 text-sm">No grids found.</span>';
+    }
 }
 
 function generateGridButtons() {
@@ -774,19 +652,75 @@ function generateGridButtons() {
     if (!buttonsContainer) return;
 
     let buttonsHtml = '';
-    const sortedIds = Object.keys(gridTemplates).map(Number).sort((a, b) => a - b);
+    
+    // Generate numeric buttons based on file scan
+    availableGrids.forEach(grid => {
+        const id = grid.id;
+        const isActive = (id === activeGrid);
+        const colorClass = isActive ? 'bg-blue-600' : 'bg-blue-500';
+        buttonsHtml += `<button id="grid-btn-${id}" onclick="drawGrid(${id})" class="${colorClass} text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition">${id}</button>`;
+    });
 
-    for (const id of sortedIds) {
-        buttonsHtml += `<button id="grid-btn-${id}" onclick="drawGrid(${id})" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition">${id}</button>`;
-    }
+    // Plus Button (Opens Modal)
     buttonsHtml += `<button onclick="openModal()" class="text-blue-500 font-bold py-2 px-4 text-xl rounded-lg hover:text-blue-400 transition">+</button>`;
+    
     buttonsContainer.innerHTML = buttonsHtml;
 }
 
+function drawGrid(gridId) {
+    activeGrid = gridId;
+    
+    // Update button states
+    document.querySelectorAll('#grid-buttons button').forEach(btn => {
+        if(btn.innerText === "+") return;
+        btn.classList.remove('bg-blue-600');
+        btn.classList.add('bg-blue-500');
+        if(btn.id === `grid-btn-${gridId}`) {
+            btn.classList.remove('bg-blue-500');
+            btn.classList.add('bg-blue-600');
+        }
+    });
+
+    const gridContainer = document.getElementById('current-grid');
+    const gridData = availableGrids.find(g => g.id === gridId);
+
+    if (gridData && baseDirPath) {
+        // Construct File URL
+        const root = baseDirPath.replace(/\\/g, '/');
+        const cleanRoot = root.startsWith('/') ? root : '/' + root;
+        const fileName = gridData.fileName;
+        const fullPath = `file://${cleanRoot}/DTC_Grids/${fileName}`;
+        const uniqueParam = `?t=${Date.now()}`;
+
+        // Add Image + Delete Overlay (WITH RETRY LOGIC)
+        // onerror handler retries once after 200ms if image is broken
+        // The container size in index.html is now larger (max-w-2xl)
+        gridContainer.innerHTML = `
+            <div class="relative w-full h-full group flex justify-center">
+                <img src="${fullPath}${uniqueParam}" 
+                     alt="Grid ${gridId}" 
+                     class="w-full h-auto object-contain rounded-lg shadow-xl"
+                     onerror="setTimeout(()=> { this.src = '${fullPath}?t=' + Date.now(); }, 200)">
+                
+                <button onclick="openDeleteGridModal(${gridId}, '${fileName}')" 
+                        class="hidden group-hover:block absolute top-[3px] right-[3px] bg-red-600 text-white rounded-full p-1.5 shadow-lg hover:bg-red-700 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        `;
+        gridContainer.classList.remove('crossword-grid', 'grid');
+        gridContainer.classList.add('flex', 'items-center', 'justify-center');
+    } else {
+        gridContainer.innerHTML = '<span class="text-gray-500">Grid not found</span>';
+    }
+}
+
+// --- GRID MODALS ---
+
 function openModal() {
-    selectedGridImageBase64 = null;
-    const fileUpload = document.getElementById('grid-file-upload');
-    if (fileUpload) fileUpload.value = '';
     document.getElementById('save-grid-modal').classList.remove('hidden');
 }
 
@@ -794,33 +728,73 @@ function closeModal() {
     document.getElementById('save-grid-modal').classList.add('hidden');
 }
 
-function saveGridAndCreateNew() {
-    const gridIds = Object.keys(gridTemplates).map(Number);
-    const newGridId = gridIds.length > 0 ? Math.max(...gridIds) + 1 : 1;
+async function saveGridAndCreateNew() {
+    // Call JSX to find Comp and Save
+    try {
+        const resStr = await evalScriptPromise("$._ext.saveSnapshot()");
+        
+        // CHECK IF HOST SCRIPT RETURNED EMPTY/NULL
+        if (!resStr) {
+            alert("Error: Host script returned no data. \n\n1. Ensure 'FilePicker.jsx' is loaded.\n2. Ensure a comp named 'Grid' exists.\n3. Try reloading the extension.");
+            return;
+        }
 
-    if (selectedGridImageBase64) {
-        gridTemplates[activeGrid].imageUrl = 'data:image/png;base64,' + selectedGridImageBase64;
+        const res = JSON.parse(resStr);
+        
+        if (res.status === 'success') {
+            closeModal();
+            await loadGridsFromDisk(); // Reload buttons, fetching new files list
+            
+            // Draw new grid immediately
+            // Note: image onerror handles if OS hasn't flushed file write yet
+            drawGrid(res.id); 
+        } else {
+            alert("Error: " + res.message);
+        }
+    } catch(e) {
+        alert("Operation Failed: " + e);
     }
-
-    gridTemplates[newGridId] = {
-        name: `Grid ${newGridId}`,
-        data: Array(14 * 14).fill(0),
-        numbers: {},
-        imageUrl: null
-    };
-
-    closeModal();
-    generateGridButtons();
-    drawGrid(newGridId);
 }
+
+// --- DELETE GRID ---
+
+function openDeleteGridModal(id, fileName) {
+    gridToDelete = { id, fileName };
+    document.getElementById('delete-grid-message').textContent = `Are you sure you want to delete Grid ${id}? This cannot be undone.`;
+    document.getElementById('delete-grid-confirm-modal').classList.remove('hidden');
+}
+
+function closeDeleteGridModal() {
+    gridToDelete = null;
+    document.getElementById('delete-grid-confirm-modal').classList.add('hidden');
+}
+
+async function confirmDeleteGrid() {
+    if (!gridToDelete) return;
+
+    try {
+        const res = await evalScriptPromise(`$._ext.deleteGridFile("${gridToDelete.fileName}")`);
+        if (res === "SUCCESS") {
+            // Delete logic handles renumbering, so we just reload everything
+            closeDeleteGridModal();
+            await loadGridsFromDisk(); // This will pull the new [1, 2, 3...] list
+            
+            // If active grid was deleted or shifted, loadGridsFromDisk handles selecting first or maintaining valid selection
+        } else {
+            alert("Delete failed: " + res);
+        }
+    } catch(e) {
+        alert("Error: " + e);
+    }
+}
+
 
 function updateFileSelection(value) {
     fileSelection = value;
-    // console.log('File selection mode set to:', fileSelection);
 }
 
 
-// --- AFTER EFFECTS COMMUNICATION (RESTORED) ---
+// --- AFTER EFFECTS COMMUNICATION ---
 
 function collectAndApplyContent() {
     const dataArray = [];
@@ -853,7 +827,6 @@ function collectAndApplyContent() {
 
     if (!isValid) return alert("Please complete all visible fields before applying.");
 
-    // Using new escape helper for safety
     const jsonString = JSON.stringify(dataArray);
     const escapedJsonString = escapeForJSX(jsonString);
     const jsxCommand = `applyBatchQA('${escapedJsonString}');`;
