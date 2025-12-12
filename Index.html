@@ -60,7 +60,7 @@
                                 onclick="togglePresetDropdown()">
 
                                 <button type="button" class="p-1 rounded-full bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                                    <img src="assets/save.png" alt="Save Preset" class="w-6 h-6 object-contain" />
+                                    <img src="##" alt="Save Preset" class="w-6 h-6 object-contain" />
                                 </button>
                                 <span id="selected-preset-name" class="text-sm font-semibold text-gray-100">-- Select Preset --</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-gray-400 ml-1">
@@ -129,9 +129,9 @@
                         </button>
                     </div>
 
-                    <!-- PREVIEW CONTAINER INCREASED SIZE HERE (max-w-2xl) -->
+                    <!-- PREVIEW CONTAINER: FORCE SQUARE ASPECT RATIO & CROP -->
                     <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative group-hover-container">
-                        <div id="current-grid" class="crossword-grid grid mx-auto max-w-2xl w-full relative flex items-center justify-center min-h-[100px]">
+                        <div id="current-grid" class="mx-auto w-full max-w-sm aspect-square relative flex items-center justify-center overflow-hidden rounded-lg">
                             <!-- Grid Image Appears Here -->
                         </div>
                     </div>

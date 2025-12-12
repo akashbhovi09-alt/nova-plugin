@@ -692,18 +692,31 @@ function drawGrid(gridId) {
         const fullPath = `file://${cleanRoot}/DTC_Grids/${fileName}`;
         const uniqueParam = `?t=${Date.now()}`;
 
-        // Add Image + Delete Overlay (WITH RETRY LOGIC)
-        // onerror handler retries once after 200ms if image is broken
-        // The container size in index.html is now larger (max-w-2xl)
+        // Add Image + Delete Overlay (WITH RETRY LOGIC and ZOOM)
+        // Image styles: 
+        // - w-full h-full: fills the square container
+        // - object-cover: crops to fill without stretching
+        // - scale-[2.0]: zooms in 2x (Tailwind arbitrary value)
+        // - origin-center: zooms from center
+        
+        // Retry logic: checks if image failed (broken link), tries again up to 5 times.
+        const retryScript = `
+            if(!this.retries) this.retries = 0; 
+            if(this.retries < 5) { 
+                this.retries++; 
+                setTimeout(()=> { this.src = '${fullPath}?t=' + Date.now(); }, 200 * this.retries); 
+            }
+        `;
+
         gridContainer.innerHTML = `
-            <div class="relative w-full h-full group flex justify-center">
+            <div class="relative w-full h-full group flex justify-center items-center overflow-hidden rounded-lg">
                 <img src="${fullPath}${uniqueParam}" 
                      alt="Grid ${gridId}" 
-                     class="w-full h-auto object-contain rounded-lg shadow-xl"
-                     onerror="setTimeout(()=> { this.src = '${fullPath}?t=' + Date.now(); }, 200)">
+                     class="w-full h-full object-cover transform scale-[1.5] origin-center"
+                     onerror="${retryScript.replace(/\n/g, '')}">
                 
                 <button onclick="openDeleteGridModal(${gridId}, '${fileName}')" 
-                        class="hidden group-hover:block absolute top-[3px] right-[3px] bg-red-600 text-white rounded-full p-1.5 shadow-lg hover:bg-red-700 transition">
+                        class="hidden group-hover:block absolute top-[6px] right-[6px] bg-red-600 text-white rounded-full p-1.5 shadow-lg hover:bg-red-700 transition z-10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -711,6 +724,7 @@ function drawGrid(gridId) {
                 </button>
             </div>
         `;
+        // Ensure container has flex classes from previous logic
         gridContainer.classList.remove('crossword-grid', 'grid');
         gridContainer.classList.add('flex', 'items-center', 'justify-center');
     } else {

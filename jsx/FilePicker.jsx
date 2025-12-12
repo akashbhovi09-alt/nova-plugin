@@ -184,6 +184,9 @@ $._ext.saveSnapshot = function() {
         var originalRes = gridComp.resolutionFactor.slice();
         gridComp.resolutionFactor = [1, 1]; // Set resolution to Full for clear snapshot
 
+        // --- FIX: PURGE CACHE TO ENSURE FRESH CAPTURE ---
+        app.purge(PurgeTarget.IMAGE_CACHES);
+
         try {
             gridComp.saveFrameToPng(0, destFile);
         } catch (e) {
