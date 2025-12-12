@@ -51,7 +51,7 @@ function parseLines(str){ return (str||'').split(/\r?\n/).map(s=>s.trim()).filte
 function toDisplayPath(path){ 
     if (!path) return '— Folder not selected —';
     const parts = path.split(/[\/\\]/).filter(Boolean);
-    return parts[parts.length - 1]; 
+    return parts[parts.length - 1] ? '/' + parts[parts.length - 1] : path; 
 }
 
 // CRITICAL FIX: Escapes newlines and quotes so evalScript doesn't break
@@ -102,7 +102,7 @@ window.onload = async () => {
         generateGridButtons();
     }
 
-    // 3. Bind Listener for Picking Folder
+    // 3. Bind Listener for Picking Folder (Re-bound due to modal change)
     const pickBtn = document.getElementById('pickBaseBtn');
     if(pickBtn) {
         pickBtn.addEventListener('click', async () => {
@@ -805,6 +805,32 @@ async function confirmDeleteGrid() {
 
 function updateFileSelection(value) {
     fileSelection = value;
+}
+
+
+// --- SETTINGS MODAL LOGIC (NEW) ---
+
+function openSettingsModal() {
+    document.getElementById('settings-modal').classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+    document.getElementById('settings-modal').classList.add('hidden');
+}
+
+function toggleSettingsInputs() {
+    const isChecked = document.getElementById('toggle-edit-names').checked;
+    const inputs = document.querySelectorAll('.settings-input');
+    inputs.forEach(input => {
+        input.disabled = !isChecked;
+    });
+}
+
+function saveSettings() {
+    // Placeholder for save logic
+    // You would gather the values from .settings-input here and save them via evalScript
+    console.log("Settings Saved");
+    closeSettingsModal();
 }
 
 

@@ -142,3 +142,38 @@ body {
 .question-panel-wrapper:not(.hidden-panel) {
     transform: translateY(0);
 }
+
+/* --- Settings Modal Specific Styles --- */
+/* Custom Scrollbar for Settings Modal */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #1a203c;
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #4a5568;
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #718096;
+}
+
+/* Settings Inputs styling */
+.settings-input {
+    background-color: #334155; /* Slate 700ish to match image */
+    color: #e2e8f0;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+.settings-input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background-color: #334155; /* Keep background same but dim text via opacity */
+}
+.settings-input:not(:disabled):focus {
+    border-color: #3b82f6;
+    outline: none;
+    background-color: #1e293b;
+}

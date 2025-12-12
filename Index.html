@@ -60,7 +60,7 @@
                                 onclick="togglePresetDropdown()">
 
                                 <button type="button" class="p-1 rounded-full bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                                    <img src="##" alt="Save Preset" class="w-6 h-6 object-contain" />
+                                    <img src="assets/save.png" alt="Save Preset" class="w-6 h-6 object-contain" />
                                 </button>
                                 <span id="selected-preset-name" class="text-sm font-semibold text-gray-100">-- Select Preset --</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-gray-400 ml-1">
@@ -80,57 +80,35 @@
                 </div>
             </div>
 
-            <!-- SETTINGS PAGE -->
+            <!-- SETTINGS PAGE (NEW LAYOUT) -->
             <div id="page-settings" class="tab-page hidden">
-                <div class="card-bg p-4 rounded-xl shadow-2xl space-y-4">
+                
+                <!-- Select Your GRID Header Section -->
+                <div class="card-bg p-4 rounded-t-xl flex justify-between items-center shadow-lg border-b border-slate-800/50">
+                    <h3 class="text-lg font-bold text-gray-100">Select Your GRID :</h3>
+                    <button onclick="openSettingsModal()" class="text-gray-300 hover:text-white transition transform hover:rotate-90 duration-300">
+                        <!-- Gear Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                </div>
 
-                    <div class="card-bg p-3 rounded-xl space-y-3">
-                        <h3 class="text-lg font-semibold text-gray-100">Presets Folder Setup:</h3>
-                        <div class="flex items-center space-x-2">
-                            <button id="pickBaseBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
-                                Pick Presets Folder
-                            </button>
-                            <span id="basePathLabel" class="text-sm text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap max-w-xs">— Folder not selected —</span>
-                        </div>
-                        <p class="text-xs text-gray-500">
-                            Please select your base directory. The app will create/use a <code>DTC_Presets</code> subfolder.
-                        </p>
-                    </div>
-                    
-                    <div class="flex justify-center items-center space-x-6 text-sm font-medium">
-                        <label for="file-old" class="flex items-center cursor-pointer space-x-2">
-                            <input type="radio" id="file-old" name="file-selection" value="old" class="file-radio-input" onchange="updateFileSelection(this.value)">
-                            <div class="file-radio-dot"></div>
-                            <span class="text-gray-400">Old file</span>
-                        </label>
-                        <label for="file-new" class="flex items-center cursor-pointer space-x-2">
-                            <input type="radio" id="file-new" name="file-selection" value="new" class="file-radio-input" checked onchange="updateFileSelection(this.value)">
-                            <div class="file-radio-dot"></div>
-                            <span class="text-gray-400">New file</span>
-                        </label>
+                <!-- Grid Buttons & Preview -->
+                <div class="card-bg p-4 rounded-b-xl shadow-2xl space-y-4">
+                    <div id="grid-buttons" class="flex flex-wrap gap-2 mt-1">
+                        <!-- Dynamically loaded grid buttons will appear here -->
                     </div>
 
-                    <div class="card-bg p-2 rounded-xl">
-                        <div class="flex items-center space-x-3 cursor-pointer text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 rotate-180">
-                                <path d="M6 9l6 6 6-6"/>
-                            </svg>
-                            <h3 class="text-lg font-semibold text-gray-100">Select Your GRID :</h3>
-                        </div>
-
-                        <div id="grid-buttons" class="flex flex-wrap gap-2 mt-1">
-                            <!-- Dynamically loaded grid buttons will appear here -->
-                        </div>
-                    </div>
-
-                    <div class="flex justify-center">
-                        <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                    <div class="flex justify-center mt-4">
+                        <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-200">
                             Load GRID
                         </button>
                     </div>
 
-                    <!-- PREVIEW CONTAINER: FORCE SQUARE ASPECT RATIO & CROP -->
-                    <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative group-hover-container">
+                    <!-- PREVIEW CONTAINER -->
+                    <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative group-hover-container mt-4">
                         <div id="current-grid" class="mx-auto w-full max-w-sm aspect-square relative flex items-center justify-center overflow-hidden rounded-lg">
                             <!-- Grid Image Appears Here -->
                         </div>
@@ -147,6 +125,136 @@
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- SETTINGS DETAIL POPUP (NEW) -->
+    <div id="settings-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
+        <!-- Modal Content: Square shape with scrollable content if needed -->
+        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center space-x-2 p-6 border-b border-slate-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <h2 class="text-xl font-bold text-white tracking-wide">SETTINGS :</h2>
+            </div>
+
+            <!-- Scrollable Body -->
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                
+                <!-- Folder Picker Section -->
+                <div class="flex items-center space-x-4">
+                    <button id="pickBaseBtn" class="bg-white hover:bg-gray-200 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 flex items-center space-x-2">
+                        <!-- Mac-style blue folder icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500 fill-current" viewBox="0 0 24 24">
+                            <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
+                        <span>Pick Presets Folder</span>
+                    </button>
+                    <span id="basePathLabel" class="text-gray-400 font-medium text-sm overflow-hidden text-ellipsis whitespace-nowrap">
+                        /DTC_Presets
+                    </span>
+                </div>
+
+                <!-- Edit Names Checkbox -->
+                <div class="flex justify-end">
+                    <label class="custom-checkbox text-sm text-gray-300 select-none">
+                        <input type="checkbox" id="toggle-edit-names" onchange="toggleSettingsInputs()">
+                        <span class="box"></span>
+                        Edit Names
+                    </label>
+                </div>
+
+                <!-- COMP NAMES SECTION -->
+                <div class="space-y-3">
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm">COMP NAMES :</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <!-- Row -->
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_GRID_MAIN :</span>
+                            <input type="text" value="GRID" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_REPLACE_QA :</span>
+                            <input type="text" value="REPLACE Q&A" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_GRID :</span>
+                            <input type="text" value="Grid" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_ANSWERS_NAME :</span>
+                            <input type="text" value="ANSWERS" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-700/50 my-2"></div>
+
+                <!-- LAYER NAMES SECTION -->
+                <div class="space-y-3">
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm">LAYER NAMES :</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">LAYER_CONTROLLER :</span>
+                            <input type="text" value="Controller" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">LAYER_QUESTION_PREFIX :</span>
+                            <input type="text" value="QUESTION" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">LAYER_ANSWER_PREFIX :</span>
+                            <input type="text" value="ANSWER" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">LAYER_TILE_SOURCE :</span>
+                            <input type="text" value="Tile" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-700/50 my-2"></div>
+
+                <!-- EFFECT NAMES SECTION -->
+                <div class="space-y-3">
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm">EFFECT NAMES :</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">PROP_TILE_NUM :</span>
+                            <input type="text" value="Num" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">EFFECT_ROW_SLIDER :</span>
+                            <input type="text" value="Row" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">EFFECT_COL_SLIDER :</span>
+                            <input type="text" value="Column" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">ANSWERS_ROTATION :</span>
+                            <input type="text" value="Rotation" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">ANSWERS_LETTER_PREFIX :</span>
+                            <input type="text" value="L" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="p-6 border-t border-slate-700 flex justify-end space-x-4">
+                <button onclick="closeSettingsModal()" class="px-6 py-2 rounded-lg text-gray-400 hover:text-white font-semibold transition duration-150">
+                    CANCEL
+                </button>
+                <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition duration-200">
+                    SAVE
+                </button>
+            </div>
         </div>
     </div>
 
