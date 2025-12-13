@@ -42,6 +42,31 @@ let questionImages = {}; // Map<index, File> - Stores actual file objects for sa
 let availableGrids = []; // List of grids loaded from DTC_Grids
 let gridToDelete = null; // Temp store for delete modal
 
+// --- Settings Default & Saved State ---
+// These are the immutable defaults.
+const DEFAULT_SETTINGS = {
+    isCustomNamesEnabled: false, // Default checkbox state
+    compMain: "GRID",
+    compQa: "REPLACE Q&A",
+    compGrid: "Grid",
+    compAnswers: "ANSWERS",
+    layerCtrl: "Controller",
+    layerQ: "QUESTION",
+    layerA: "ANSWER",
+    layerTile: "Tile",
+    fxNum: "Num",
+    fxRow: "Row",
+    fxCol: "Column",
+    fxRot: "Rotation",
+    fxLetter: "L"
+};
+
+// This variable holds the "committed" settings.
+// When modal opens, inputs are populated from this.
+// When "Save" is clicked, this is updated.
+// When "Cancel" is clicked, nothing happens to this, so next Open restores this.
+let savedSettings = { ...DEFAULT_SETTINGS };
+
 
 // --- UTILS ---
 function slugify(s) { return (s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
@@ -102,7 +127,7 @@ window.onload = async () => {
         generateGridButtons();
     }
 
-    // 3. Bind Listener for Picking Folder (Re-bound due to modal change)
+    // 3. Bind Listener for Picking Folder
     const pickBtn = document.getElementById('pickBaseBtn');
     if(pickBtn) {
         pickBtn.addEventListener('click', async () => {
@@ -479,19 +504,17 @@ function updateContentMode(force) {
     isAutoFrenzy = afCheckbox ? afCheckbox.checked : false;
     is60SecVid = vidCheckbox ? vidCheckbox.checked : false;
 
+    // IMPORTANT: force is only true on init. 
+    // We do NOT want to re-render panels when checkboxes change, 
+    // as that destroys user input.
     if(force) renderQuestionPanels();
     updatePanelVisibilityAndInputs();
 }
 
 function handleCheckboxChange(is60Sec) {
-    const afCheckbox = document.getElementById('checkbox-auto-frenzy');
-    const vidCheckbox = document.getElementById('checkbox-60-sec-vid');
-    if (is60Sec) {
-        if(vidCheckbox.checked) { if(afCheckbox) afCheckbox.checked = false; }
-    } else {
-        if(afCheckbox.checked) { if(vidCheckbox) vidCheckbox.checked = false; }
-    }
-    updateContentMode(false);
+    // REMOVED MUTUAL EXCLUSIVITY LOGIC
+    // Both can be checked simultaneously now.
+    updateContentMode(false); 
 }
 
 function renderQuestionPanels() {
@@ -808,28 +831,103 @@ function updateFileSelection(value) {
 }
 
 
-// --- SETTINGS MODAL LOGIC (NEW) ---
+// --- SETTINGS MODAL LOGIC (STRICT SAVE/CANCEL) ---
 
 function openSettingsModal() {
-    document.getElementById('settings-modal').classList.remove('hidden');
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+
+    // 1. Restore the checkbox state from saved settings
+    document.getElementById('toggle-edit-names').checked = savedSettings.isCustomNamesEnabled;
+
+    // 2. Populate UI inputs from 'savedSettings' (which are either defaults or saved custom)
+    document.getElementById('set-comp-main').value = savedSettings.compMain;
+    document.getElementById('set-comp-qa').value = savedSettings.compQa;
+    document.getElementById('set-comp-grid').value = savedSettings.compGrid;
+    document.getElementById('set-comp-answers').value = savedSettings.compAnswers;
+
+    document.getElementById('set-layer-ctrl').value = savedSettings.layerCtrl;
+    document.getElementById('set-layer-q').value = savedSettings.layerQ;
+    document.getElementById('set-layer-a').value = savedSettings.layerA;
+    document.getElementById('set-layer-tile').value = savedSettings.layerTile;
+
+    document.getElementById('set-fx-num').value = savedSettings.fxNum;
+    document.getElementById('set-fx-row').value = savedSettings.fxRow;
+    document.getElementById('set-fx-col').value = savedSettings.fxCol;
+    document.getElementById('set-fx-rot').value = savedSettings.fxRot;
+    document.getElementById('set-fx-letter').value = savedSettings.fxLetter;
+
+    // 3. Set visual state (enable/disable fields based on restored checkbox)
+    toggleSettingsInputs();
+
+    modal.classList.remove('hidden');
 }
 
 function closeSettingsModal() {
+    // "Cancel" action: Just close. 
+    // Any changes made to DOM elements while open are discarded because next openSettingsModal() 
+    // wipes them with values from 'savedSettings'.
     document.getElementById('settings-modal').classList.add('hidden');
 }
 
 function toggleSettingsInputs() {
     const isChecked = document.getElementById('toggle-edit-names').checked;
     const inputs = document.querySelectorAll('.settings-input');
+    
+    // 1. Enable/Disable
     inputs.forEach(input => {
         input.disabled = !isChecked;
     });
+
+    // 2. LOGIC: If Unchecked -> Immediately reset UI to Defaults.
+    // This means if user unchecks the box, they lose their custom edits in the UI immediately,
+    // which aligns with "reset what already there... acts as default texts".
+    if (!isChecked) {
+        document.getElementById('set-comp-main').value = DEFAULT_SETTINGS.compMain;
+        document.getElementById('set-comp-qa').value = DEFAULT_SETTINGS.compQa;
+        document.getElementById('set-comp-grid').value = DEFAULT_SETTINGS.compGrid;
+        document.getElementById('set-comp-answers').value = DEFAULT_SETTINGS.compAnswers;
+        
+        document.getElementById('set-layer-ctrl').value = DEFAULT_SETTINGS.layerCtrl;
+        document.getElementById('set-layer-q').value = DEFAULT_SETTINGS.layerQ;
+        document.getElementById('set-layer-a').value = DEFAULT_SETTINGS.layerA;
+        document.getElementById('set-layer-tile').value = DEFAULT_SETTINGS.layerTile;
+        
+        document.getElementById('set-fx-num').value = DEFAULT_SETTINGS.fxNum;
+        document.getElementById('set-fx-row').value = DEFAULT_SETTINGS.fxRow;
+        document.getElementById('set-fx-col').value = DEFAULT_SETTINGS.fxCol;
+        document.getElementById('set-fx-rot').value = DEFAULT_SETTINGS.fxRot;
+        document.getElementById('set-fx-letter').value = DEFAULT_SETTINGS.fxLetter;
+    }
+    // If Checked -> We do nothing to the values. 
+    // If coming from unchecked state, they are currently Defaults (because of logic above).
+    // If coming from saved custom state, they are currently Custom.
 }
 
 function saveSettings() {
-    // Placeholder for save logic
-    // You would gather the values from .settings-input here and save them via evalScript
-    console.log("Settings Saved");
+    // Commit the changes to the 'savedSettings' object
+    savedSettings.isCustomNamesEnabled = document.getElementById('toggle-edit-names').checked;
+
+    savedSettings.compMain = document.getElementById('set-comp-main').value.trim() || DEFAULT_SETTINGS.compMain;
+    savedSettings.compQa = document.getElementById('set-comp-qa').value.trim() || DEFAULT_SETTINGS.compQa;
+    savedSettings.compGrid = document.getElementById('set-comp-grid').value.trim() || DEFAULT_SETTINGS.compGrid;
+    savedSettings.compAnswers = document.getElementById('set-comp-answers').value.trim() || DEFAULT_SETTINGS.compAnswers;
+
+    savedSettings.layerCtrl = document.getElementById('set-layer-ctrl').value.trim() || DEFAULT_SETTINGS.layerCtrl;
+    savedSettings.layerQ = document.getElementById('set-layer-q').value.trim() || DEFAULT_SETTINGS.layerQ;
+    savedSettings.layerA = document.getElementById('set-layer-a').value.trim() || DEFAULT_SETTINGS.layerA;
+    savedSettings.layerTile = document.getElementById('set-layer-tile').value.trim() || DEFAULT_SETTINGS.layerTile;
+
+    savedSettings.fxNum = document.getElementById('set-fx-num').value.trim() || DEFAULT_SETTINGS.fxNum;
+    savedSettings.fxRow = document.getElementById('set-fx-row').value.trim() || DEFAULT_SETTINGS.fxRow;
+    savedSettings.fxCol = document.getElementById('set-fx-col').value.trim() || DEFAULT_SETTINGS.fxCol;
+    savedSettings.fxRot = document.getElementById('set-fx-rot').value.trim() || DEFAULT_SETTINGS.fxRot;
+    savedSettings.fxLetter = document.getElementById('set-fx-letter').value.trim() || DEFAULT_SETTINGS.fxLetter;
+
+    // Ideally, save this to disk (JSON) here if needed.
+    // For now, it is saved in memory session.
+    
+    console.log("Settings Saved:", savedSettings);
     closeSettingsModal();
 }
 

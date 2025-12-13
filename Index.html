@@ -130,18 +130,22 @@
 
     <!-- ================= MODALS ================= -->
 
-    <!-- SETTINGS DETAIL POPUP (NEW) -->
-    <div id="settings-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
-        <!-- Modal Content: Square shape with scrollable content if needed -->
-        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
+    <!-- SETTINGS DETAIL POPUP (UPDATED: High Padding & Square Aspect) -->
+    <!-- 'p-10 sm:p-20' provides the requested spacing around the modal -->
+    <div id="settings-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-10 sm:p-20 z-50">
+        
+        <!-- Modal Content: Enforced Square Aspect Ratio relative to smaller screen dimension -->
+        <!-- 'w-full' tries to fill width, 'aspect-square' enforces height to match width -->
+        <!-- 'max-w-[min(80vw,80vh)]' ensures it never overflows screen in either direction while staying square -->
+        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
             
             <!-- Modal Header -->
-            <div class="flex items-center space-x-2 p-6 border-b border-slate-700">
+            <div class="flex items-center space-x-2 p-6 border-b border-slate-700 flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 <h2 class="text-xl font-bold text-white tracking-wide">SETTINGS :</h2>
             </div>
 
-            <!-- Scrollable Body -->
+            <!-- Scrollable Body: flex-1 ensures it takes remaining height -->
             <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
                 
                 <!-- Folder Picker Section -->
@@ -174,19 +178,19 @@
                         <!-- Row -->
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">COMP_GRID_MAIN :</span>
-                            <input type="text" value="GRID" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-comp-main" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">COMP_REPLACE_QA :</span>
-                            <input type="text" value="REPLACE Q&A" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-comp-qa" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">COMP_GRID :</span>
-                            <input type="text" value="Grid" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-comp-grid" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">COMP_ANSWERS_NAME :</span>
-                            <input type="text" value="ANSWERS" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-comp-answers" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                     </div>
                 </div>
@@ -199,19 +203,19 @@
                     <div class="grid grid-cols-1 gap-2">
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_CONTROLLER :</span>
-                            <input type="text" value="Controller" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-layer-ctrl" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_QUESTION_PREFIX :</span>
-                            <input type="text" value="QUESTION" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-layer-q" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_ANSWER_PREFIX :</span>
-                            <input type="text" value="ANSWER" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-layer-a" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_TILE_SOURCE :</span>
-                            <input type="text" value="Tile" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-layer-tile" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                     </div>
                 </div>
@@ -224,30 +228,30 @@
                     <div class="grid grid-cols-1 gap-2">
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">PROP_TILE_NUM :</span>
-                            <input type="text" value="Num" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-fx-num" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">EFFECT_ROW_SLIDER :</span>
-                            <input type="text" value="Row" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-fx-row" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">EFFECT_COL_SLIDER :</span>
-                            <input type="text" value="Column" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-fx-col" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">ANSWERS_ROTATION :</span>
-                            <input type="text" value="Rotation" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-fx-rot" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">ANSWERS_LETTER_PREFIX :</span>
-                            <input type="text" value="L" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                            <input type="text" id="set-fx-letter" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Buttons -->
-            <div class="p-6 border-t border-slate-700 flex justify-end space-x-4">
+            <div class="p-6 border-t border-slate-700 flex justify-end space-x-4 flex-shrink-0">
                 <button onclick="closeSettingsModal()" class="px-6 py-2 rounded-lg text-gray-400 hover:text-white font-semibold transition duration-150">
                     CANCEL
                 </button>
