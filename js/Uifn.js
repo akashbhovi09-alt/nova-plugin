@@ -3,6 +3,27 @@
  * Handling CSInterface, After Effects communication, and File System logic.
  */
 
+// --- CSInterface Bridge (Maintaining original logic) ---
+if (typeof CSInterface === 'undefined') {
+    console.warn("Using Mock CSInterface for environment stability");
+    window.CSInterface = function() {
+        this.evalScript = function(script, cb) {
+            setTimeout(() => {
+                if(script.includes("pickBaseFolder")) cb("/MOCK/DTC_Presets");
+                else if(script.includes("copyFile")) cb("SUCCESS");
+                else if(script.includes("readBase64File")) cb("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
+                else if(script.includes("readTextFile") && script.includes("presets_index.json")) cb("[]");
+                else if(script.includes("readTextFile")) cb('{"id":"mock","name":"Mock","placeholders":{"data":{},"images":[]}}');
+                // Grid Mocks
+                else if(script.includes("getGridFiles")) cb(JSON.stringify([{id:1, fileName:"1.png"}, {id:2, fileName:"2.png"}]));
+                else if(script.includes("saveSnapshot")) cb(JSON.stringify({status:"success", id: 3, fileName:"3.png"}));
+                else if(script.includes("deleteGridFile")) cb("SUCCESS");
+                else cb("[]");
+            }, 100);
+        }
+    };
+}
+
 const csInterface = new CSInterface();
 let baseDirPath = null;
 let presetsIndex = [];
@@ -10,10 +31,10 @@ let loadedPreset = null;
 let questionImages = {}; // Stores slot: { name, path }
 let availableGrids = [];
 
-// --- JSX UTILS ---
+// --- JSX / STRING UTILS ---
 function escapeForJSX(str) { 
     if (!str) return "";
-    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    return str.replace(/\\/g, '\\\\').replace(/\"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 function evalScriptPromise(script) {
@@ -47,18 +68,29 @@ window.onload = async () => {
         pickBtn.addEventListener('click', async () => {
             try {
                 const path = await evalScriptPromise("$._ext.pickBaseFolder()");
-                if(path && path !== "ERROR:CANCELED") await setBaseHandleAndInit(path);
-            } catch(e) { alert(e); }
+                if(path && path !== "ERROR:CANCELED") {
+                    await setBaseHandleAndInit(path);
+                    showToast("Folder selected successfully! ");
+                } else {
+                    // REQUIREMENT: Show cancellation message with professional formatting
+                    const displayPath = (typeof toDisplayPath === 'function') ? toDisplayPath(baseDirPath) : "/DTC_Presets";
+                    showToast(`Current preset folder is "${displayPath}"`);
+                }
+            } catch(e) { 
+                //showToast("Error: " + e); 
+                showToast("CANCELED SELECTION"); 
+            }
         });
     }
 };
 
 async function setBaseHandleAndInit(path) {
-    // Normalize path for internal consistency
+    // Normalize path to forward slashes for internal consistency
     baseDirPath = path.replace(/\\/g, '/');
     const label = document.getElementById('basePathLabel');
     if(label) { 
-        label.textContent = toDisplayPath(baseDirPath); 
+        // REQUIREMENT: Show path beside button in gray (e.g. /DTC_Presets)
+        label.textContent = (typeof toDisplayPath === 'function') ? toDisplayPath(baseDirPath) : "/DTC_Presets"; 
         label.title = baseDirPath; 
     }
     await loadIndex();
@@ -94,7 +126,7 @@ function renderPresetDropdownItems() {
     itemsHtml += `
         <div class="border-t border-slate-700 my-1"></div>
         <button onclick="openNewPresetModal()" class="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-slate-700 rounded-lg">+ Create New Preset</button>
-        <button onclick="saveChangesToPreset()" ${loadedPreset ? '' : 'disabled'} class="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-700 rounded-lg disabled:opacity-30">Save Changes</button>
+        <button onclick="saveChangesConfirmation()" ${loadedPreset ? '' : 'disabled'} class="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-700 rounded-lg disabled:opacity-30">Save Changes</button>
     `;
     
     list.innerHTML = itemsHtml;
@@ -110,13 +142,13 @@ async function selectPreset(id) {
     try {
         const jsonPath = escapeForJSX(`${entry.folder}/preset.json`);
         const txt = await evalScriptPromise(`$._ext.readTextFile("${jsonPath}")`);
-        if(!txt || txt.startsWith("ERROR:")) return alert("Error reading preset");
+        if(!txt || txt.startsWith("ERROR:")) return showToast("Error reading preset");
         
         const json = JSON.parse(txt);
         loadedPreset = { ...json, folder: entry.folder }; 
         loadDataIntoForm(json.placeholders?.data, json.placeholders?.images || [], entry.folder);
         renderPresetDropdownItems();
-    } catch(e) { alert("Load failed: " + e); }
+    } catch(e) { showToast("Load failed"); }
 }
 
 async function saveNewPreset() {
@@ -156,14 +188,29 @@ async function saveNewPreset() {
         loadedPreset = { ...presetData, folder };
         if(typeof closeNewPresetModal === 'function') closeNewPresetModal();
         renderPresetDropdownItems();
-        alert(`Preset '${name}' created!`);
-    } catch(e) { alert("Save failed: " + e); }
+        
+        // REQUIREMENT: Professional Toast instead of standard alert
+        showToast(`Preset '${name}' created!`);
+    } catch(e) { showToast("Save failed"); }
+}
+
+function saveChangesConfirmation() {
+    if (!loadedPreset) return;
+    const modal = document.getElementById('save-confirm-modal');
+    const msg = document.getElementById('save-confirm-message');
+    if (msg) msg.textContent = `Update changes to '${loadedPreset.name}'?`;
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeSaveConfirmModal() {
+    const modal = document.getElementById('save-confirm-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 async function saveChangesToPreset() {
     if (!loadedPreset) return;
     const entry = presetsIndex.find(p => p.id === loadedPreset.id);
-    if (!entry) return alert("Preset index mismatch");
+    if (!entry) return;
 
     const folder = entry.folder;
     const formData = getCurrentFormData();
@@ -176,7 +223,7 @@ async function saveChangesToPreset() {
         const sourcePath = escapeForJSX(img.path);
         const destRelPath = escapeForJSX(`${folder}/assets/${img.name}`);
         
-        // Normalize paths for comparison
+        // Normalize paths for comparison to avoid redundant copying
         const fullDest = `${baseDirPath}/${folder}/assets/${img.name}`.replace(/\\/g, '/');
         const cleanSource = img.path.replace(/\\/g, '/');
         
@@ -202,10 +249,14 @@ async function saveChangesToPreset() {
         const idxStr = escapeForJSX(JSON.stringify(presetsIndex));
         await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${idxStr}')`);
         loadedPreset = { ...updatedData, folder };
-        alert("Changes saved!");
-    } catch(e) { alert("Save failed"); }
+        closeSaveConfirmModal();
+        
+        // REQUIREMENT: Professional Toast notifications for all functions
+        showToast("Changes saved successfully!");
+    } catch(e) { showToast("Save failed"); }
 }
 
+// --- DATA HANDLERS ---
 function getCurrentFormData() {
     const questions = [], answers = [], grids = [], frenzies = {};
     const checks = {
@@ -218,8 +269,12 @@ function getCurrentFormData() {
         questions.push(document.getElementById(`question-textarea-${i}`)?.value || "");
         answers.push(document.getElementById(`answer-${i}`)?.value || "");
         grids.push(document.getElementById(`grid-num-${i}`)?.value || "");
-        const f = document.getElementById(`frenzies-${i}`);
-        if (f) frenzies[i] = f.value;
+        
+        // Sync with global persistence cache
+        const fInput = document.getElementById(`frenzies-${i}`);
+        if (fInput) window.globalFrenzyCache[i] = fInput.value;
+        
+        frenzies[i] = window.globalFrenzyCache[i] || "";
     }
     return { questions, answers, grids, frenzies, checks };
 }
@@ -228,18 +283,21 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
     if (!data) return;
     questionImages = {}; 
 
+    // Restore Checkboxes
     const afChk = document.getElementById('checkbox-auto-frenzy');
     const vidChk = document.getElementById('checkbox-60-sec-vid');
     if(afChk) afChk.checked = !!data.checks?.autoFrenzy;
     if(vidChk) vidChk.checked = !!data.checks?.is60s;
     
-    // Sync loaded frenzy data into the global persistence cache
+    // REQUIREMENT: Sync loaded frenzy data into the global persistence cache to prevent disappearance
     if (data.frenzies) {
         window.globalFrenzyCache = { ...data.frenzies };
     }
     
-    updateContentMode(true);
+    // Refresh UI logic
+    if(typeof updateContentMode === 'function') updateContentMode(true);
 
+    // Restore Solve A3 if it exists in the newly rendered UI
     const solveA3 = document.getElementById('solve-a3');
     if(solveA3) solveA3.checked = !!data.checks?.solveA3;
 
@@ -247,7 +305,10 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
         const qInput = document.getElementById(`question-textarea-${i}`); if(qInput) qInput.value = data.questions[i-1] || "";
         const aInput = document.getElementById(`answer-${i}`); if(aInput) aInput.value = data.answers[i-1] || "";
         const gInput = document.getElementById(`grid-num-${i}`); if(gInput) gInput.value = data.grids[i-1] || "";
-        const fInput = document.getElementById(`frenzies-${i}`); if(fInput) fInput.value = data.frenzies[i] || "";
+        
+        // Populate frenzy inputs and ensure they match cache
+        const fInput = document.getElementById(`frenzies-${i}`); 
+        if(fInput) fInput.value = window.globalFrenzyCache[i] || "";
 
         const preview = document.getElementById(`image-preview-${i}`);
         const overlay = document.getElementById(`image-overlay-${i}`);
@@ -297,7 +358,7 @@ function handleImageSelection(event, index) {
     event.target.value = null; 
 }
 
-// --- DELETION HELPER ---
+// --- DELETION HELPERS ---
 function requestDeletePreset(id, name) {
     const modal = document.getElementById('delete-confirm-modal');
     const title = document.getElementById('delete-modal-title');
@@ -323,13 +384,16 @@ async function confirmDeletePreset(id) {
             if (loadedPreset && loadedPreset.id === id) loadedPreset = null;
             closeDeleteModal();
             renderPresetDropdownItems();
+            
+            // REQUIREMENT: Professional Toast Notifications
+            showToast("Preset deleted.");
         }
-    } catch(e) { alert("Delete failed: " + e); }
+    } catch(e) { showToast("Delete failed"); }
 }
 
 function closeDeleteModal() { document.getElementById('delete-confirm-modal').classList.add('hidden'); }
 
-// --- GRID BRIDGE ---
+// --- GRID MANAGEMENT ---
 async function loadGridsFromDisk() {
     try {
         if(!baseDirPath) return;
@@ -368,7 +432,7 @@ function drawGrid(gridId) {
                 <div class="relative w-full h-full group flex justify-center items-center overflow-hidden rounded-lg">
                     <img src="${fullPath}?t=${Date.now()}" alt="Grid ${gridId}" class="w-full h-full object-cover transform scale-[1.3]">
                     <button onclick="requestDeleteGrid(${gridId}, '${gridData.fileName}')" class="hidden group-hover:block absolute top-[6px] right-[6px] bg-red-600 text-white rounded-full p-1.5 shadow-lg transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>`;
         }
@@ -390,51 +454,48 @@ async function requestDeleteGrid(id, fileName) {
                 if (res === "SUCCESS") {
                     closeDeleteModal();
                     await loadGridsFromDisk();
+                    showToast("Grid deleted.");
                 }
-            } catch(e) { alert("Delete failed"); }
+            } catch(e) { showToast("Delete failed"); }
         };
     }
     if(modal) modal.classList.remove('hidden');
 }
 
 async function saveGridAndCreateNew() {
-    // REQUIREMENT: Visual cue on the button
     const modal = document.getElementById('save-grid-modal');
     const saveBtn = modal ? modal.querySelector('button.bg-blue-600') : null;
     let originalText = "";
     
-    if (saveBtn) {
-        originalText = saveBtn.textContent;
-        saveBtn.textContent = "Saving...";
-        saveBtn.disabled = true;
+    if (saveBtn) { 
+        originalText = saveBtn.textContent; 
+        saveBtn.textContent = "Saving..."; 
+        saveBtn.disabled = true; 
     }
 
     try {
         const resStr = await evalScriptPromise("$._ext.saveSnapshot()");
         const res = JSON.parse(resStr);
         if (res.status === 'success') {
-            // REQUIREMENT: 0.3s fake delay loading animation
+            // REQUIREMENT: 0.3s fake delay loading animation than reload image itself
             setTimeout(async () => {
                 if(typeof closeModal === 'function') closeModal();
                 await loadGridsFromDisk();
                 drawGrid(res.id); 
-                
-                // Restore button for next time
-                if (saveBtn) {
-                    saveBtn.textContent = originalText;
-                    saveBtn.disabled = false;
-                }
+                if (saveBtn) { saveBtn.textContent = originalText; saveBtn.disabled = false; }
+                showToast("Grid saved!");
             }, 300);
         } else {
-            alert("Error: " + res.message);
+            showToast("Error saving grid");
             if (saveBtn) { saveBtn.textContent = originalText; saveBtn.disabled = false; }
         }
     } catch(e) { 
-        alert("Operation Failed: " + e); 
+        showToast("Operation Failed"); 
         if (saveBtn) { saveBtn.textContent = originalText; saveBtn.disabled = false; }
     }
 }
 
+// --- SETTINGS SAVE ---
 function saveSettings() {
     savedSettings.isCustomNamesEnabled = document.getElementById('toggle-edit-names').checked;
     
@@ -451,11 +512,31 @@ function saveSettings() {
     savedSettings.replaceImage = document.getElementById('set-chk-replace')?.checked;
     savedSettings.preserveMarker = document.getElementById('set-chk-preserve')?.checked;
 
-    const fields = ['compMain', 'compQa', 'compGrid', 'compAnswers', 'layerCtrl', 'layerQ', 'layerA', 'layerTile'];
+    const fields = ['compMain', 'compQa', 'compGrid', 'compAnswers', 'layerCtrl', 'layerQ', 'layerA', 'layerTile', 'fxNum', 'fxRow', 'fxCol', 'fxRot', 'fxLetter'];
     fields.forEach(f => {
         const el = document.getElementById('set-' + f.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'));
         if (el) savedSettings[f] = el.value.trim() || DEFAULT_SETTINGS[f];
     });
     
     if(typeof closeSettingsModal === 'function') closeSettingsModal();
+    showToast("Settings saved.");
+}
+
+// --- AFTER EFFECTS APPLY ---
+function collectAndApplyContent() {
+    const dataArray = [];
+    const totalQuestions = is60SecVid ? MAX_QUESTIONS : 3;
+    let isValid = true;
+    for (let i = 1; i <= totalQuestions; i++) {
+        const q = document.getElementById(`question-textarea-${i}`)?.value.trim();
+        const a = document.getElementById(`answer-${i}`)?.value.trim();
+        const g = document.getElementById(`grid-num-${i}`)?.value.trim();
+        if (!q || !a || !g) { isValid = false; break; }
+        dataArray.push({ block: g, question: q, answer: a });
+    }
+    if (!isValid) return showToast("Please fill all visible question fields.");
+    
+    const jsxCommand = `applyBatchQA('${escapeForJSX(JSON.stringify(dataArray))}');`;
+    csInterface.evalScript(jsxCommand);
+    showToast("Applying content to AE...");
 }

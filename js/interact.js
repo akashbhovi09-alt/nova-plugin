@@ -12,7 +12,7 @@ const panelStates = Array(MAX_QUESTIONS + 1).fill(false);
 let isAutoFrenzy = false;
 let is60SecVid = false;
 
-// Persistence cache to prevent text disappearing on toggle
+// Global persistence cache for frenzy values to survive re-renders
 window.globalFrenzyCache = {}; 
 
 // --- Settings Default & Saved State ---
@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
     f5a6: "2",
     minGap: "2",
     randSeed: "12345",
-    replaceImage: true, // REQUIREMENT: REPLACE_IMAGE ticked by default
+    replaceImage: true,
     preserveMarker: false,
     compMain: "GRID",
     compQa: "REPLACE Q&A",
@@ -44,11 +44,27 @@ const DEFAULT_SETTINGS = {
 
 let savedSettings = { ...DEFAULT_SETTINGS };
 
+// --- PROFESSIONAL NOTIFICATION SYSTEM ---
+function showToast(msg, duration = 1000) {
+    const toast = document.getElementById('toast-notification');
+    const toastMsg = document.getElementById('toast-message');
+    if (!toast || !toastMsg) return;
+
+    toastMsg.textContent = msg;
+    toast.classList.remove('hidden', 'opacity-0');
+    toast.classList.add('opacity-100');
+
+    if (window.toastTimeout) clearTimeout(window.toastTimeout);
+    window.toastTimeout = setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.classList.add('hidden'), 300);
+    }, duration);
+}
+
 // --- GLOBAL FIXES ---
-// Disable Context Menu (Right Click)
 window.addEventListener('contextmenu', e => e.preventDefault());
 
-// Close Dropdown when clicking elsewhere
 window.addEventListener('click', (e) => {
     const dropdown = document.getElementById('preset-dropdown-menu');
     const container = document.getElementById('preset-dropdown-container');
@@ -64,10 +80,12 @@ function slugify(s) { return (s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,
 function newId() { return Math.floor(Date.now() + Math.random()*1e6).toString(36); }
 function nowISO() { return new Date().toISOString(); }
 function parseLines(str){ return (str||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+
 function toDisplayPath(path){ 
-    if (!path) return '— Folder not selected —';
-    const parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
-    return parts[parts.length - 1] ? '/' + parts[parts.length - 1] : path; 
+    if (!path) return '/DTC_Presets';
+    const cleanPath = path.replace(/\\/g, '/');
+    const parts = cleanPath.split('/').filter(Boolean);
+    return parts.length > 0 ? '/' + parts[parts.length - 1] : '/DTC_Presets'; 
 }
 
 // --- TAB LOGIC ---
@@ -116,14 +134,6 @@ function renderQuestionPanels() {
 function generateQuestionPanel(index) {
     const collapsedClass = panelStates[index] ? 'collapsed' : '';
     
-    // Middle slot logic (Frenzy vs Solve A3)
-    let middleSlotHTML = `
-        <div id="middle-slot-container-${index}" class="flex flex-col justify-end">
-            <label for="frenzies-${index}" class="block text-[10px] font-medium mb-0.5 text-gray-500 uppercase">Frenzies</label>
-            <input type="text" id="frenzies-${index}" placeholder="Enter frenzies" class="frenzy-input w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
-        </div>
-    `;
-
     return `
     <div id="wrapper-${index}" class="question-panel-wrapper">
         <div id="question-${index}" class="question-panel card-bg p-1 rounded-xl shadow-2xl transition duration-300 w-full max-w-3xl min-panel-width ${collapsedClass}">
@@ -157,7 +167,9 @@ function generateQuestionPanel(index) {
                         <input type="text" id="answer-${index}" placeholder="Enter answer" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
                     </div>
                     
-                    ${middleSlotHTML}
+                    <div id="middle-slot-container-${index}" class="flex flex-col justify-end">
+                        <!-- Frenzy Input / Solve A3 injected here -->
+                    </div>
 
                     <div>
                         <label for="grid-num-${index}" class="block text-[10px] font-medium mb-0.5 text-gray-500 uppercase">Grid Num</label>
@@ -172,12 +184,6 @@ function generateQuestionPanel(index) {
 
 function updatePanelVisibilityAndInputs() {
     const totalQuestions = is60SecVid ? MAX_QUESTIONS : 3; 
-    
-    // Sync current DOM values to global cache before manipulation
-    for (let i = 1; i <= MAX_QUESTIONS; i++) {
-        const input = document.getElementById(`frenzies-${i}`);
-        if (input) window.globalFrenzyCache[i] = input.value;
-    }
 
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         const wrapper = document.getElementById(`wrapper-${i}`);
@@ -195,7 +201,6 @@ function updatePanelVisibilityAndInputs() {
             wrapper.style.marginBottom = '0';
         }
 
-        // Handle Middle Slot Content (Frenzy vs Solve A3)
         const middleSlot = document.getElementById(`middle-slot-container-${i}`);
         if (middleSlot) {
             if (!is60SecVid && i === 3) {
@@ -211,13 +216,17 @@ function updatePanelVisibilityAndInputs() {
             } else if (isVisible && showFrenzies) {
                 middleSlot.innerHTML = `
                     <label for="frenzies-${i}" class="block text-[10px] font-medium mb-0.5 text-gray-500 uppercase">Frenzies</label>
-                    <input type="text" id="frenzies-${i}" placeholder="Enter frenzies" class="frenzy-input w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
+                    <input type="text" id="frenzies-${i}" 
+                        oninput="window.globalFrenzyCache[${i}]=this.value" 
+                        placeholder="Enter frenzies" 
+                        class="frenzy-input w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
                 `;
                 
-                // RESTORE CACHED VALUE from window.globalFrenzyCache
                 const frenzyInput = document.getElementById(`frenzies-${i}`);
                 if (frenzyInput) {
-                    if (window.globalFrenzyCache[i] !== undefined) frenzyInput.value = window.globalFrenzyCache[i];
+                    if (window.globalFrenzyCache[i] !== undefined) {
+                        frenzyInput.value = window.globalFrenzyCache[i];
+                    }
                     frenzyInput.disabled = isAutoFrenzy;
                     frenzyInput.style.opacity = isAutoFrenzy ? '0.5' : '1';
                 }
@@ -236,50 +245,41 @@ function toggleQuestion(panelId, index) {
     }
 }
 
-// --- GRID UI ---
 function generateGridButtons() {
     const buttonsContainer = document.getElementById('grid-buttons');
     if (!buttonsContainer) return;
-
     let buttonsHtml = '';
     const grids = (typeof availableGrids !== 'undefined') ? availableGrids : [];
-
     grids.forEach(grid => {
         const id = grid.id;
         const isActive = (id === activeGrid);
         const colorClass = isActive ? 'bg-blue-600' : 'bg-blue-500';
         buttonsHtml += `<button id="grid-btn-${id}" onclick="drawGrid(${id})" class="${colorClass} text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition">${id}</button>`;
     });
-
-    // Plus Button (Opens Modal)
     buttonsHtml += `<button onclick="openModal()" class="text-blue-500 font-bold py-2 px-4 text-xl rounded-lg hover:text-blue-400 transition">+</button>`;
-    
     buttonsContainer.innerHTML = buttonsHtml;
 }
 
 function openModal() { document.getElementById('save-grid-modal').classList.remove('hidden'); }
 function closeModal() { document.getElementById('save-grid-modal').classList.add('hidden'); }
 
-// --- PRESET DROPDOWN UI ---
 function togglePresetDropdown() {
     const d = document.getElementById('preset-dropdown-menu');
     if(!d) return;
     const isHidden = d.classList.contains('hidden');
     if (isHidden) {
         d.classList.remove('hidden');
-        setTimeout(() => {
-            d.classList.remove('opacity-0', 'translate-y-2');
-        }, 10);
+        setTimeout(() => { d.classList.remove('opacity-0', 'translate-y-2'); }, 10);
     } else {
         d.classList.add('opacity-0', 'translate-y-2');
-        setTimeout(() => {
-            d.classList.add('hidden');
-        }, 200);
+        setTimeout(() => { d.classList.add('hidden'); }, 200);
     }
 }
 
 function openNewPresetModal() {
-    if(typeof baseDirPath !== 'undefined' && !baseDirPath) return alert("Select Folder First");
+    if(typeof baseDirPath !== 'undefined' && !baseDirPath) {
+        return showToast("Select Folder First");
+    }
     togglePresetDropdown();
     const modal = document.getElementById('new-preset-modal');
     if(modal) {
@@ -319,7 +319,6 @@ function closeSettingsModal() { document.getElementById('settings-modal').classL
 function toggleSettingsInputs() {
     const isChecked = document.getElementById('toggle-edit-names').checked;
     document.querySelectorAll('.settings-input').forEach(input => { input.disabled = !isChecked; });
-    
     if (!isChecked) {
         document.getElementById('set-f1-a2').value = DEFAULT_SETTINGS.f1a2;
         document.getElementById('set-f2-a3').value = DEFAULT_SETTINGS.f2a3;
@@ -330,7 +329,6 @@ function toggleSettingsInputs() {
         document.getElementById('set-rand-seed').value = DEFAULT_SETTINGS.randSeed;
         document.getElementById('set-chk-replace').checked = DEFAULT_SETTINGS.replaceImage;
         document.getElementById('set-chk-preserve').checked = DEFAULT_SETTINGS.preserveMarker;
-
         document.getElementById('set-comp-main').value = DEFAULT_SETTINGS.compMain;
         document.getElementById('set-comp-qa').value = DEFAULT_SETTINGS.compQa;
         document.getElementById('set-comp-grid').value = DEFAULT_SETTINGS.compGrid;

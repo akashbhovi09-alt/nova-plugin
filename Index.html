@@ -10,6 +10,13 @@
 </head>
 <body class="min-h-screen p-4 sm:p-6 md:p-10 text-white antialiased">
 
+    <!-- PROFESSIONAL TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-notification" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] hidden transition-all duration-300 pointer-events-none opacity-0">
+        <div class="card-bg px-8 py-3 rounded-full border border-blue-500/40 shadow-[0_0_40px_rgba(0,0,0,0.5)] backdrop-blur-md">
+            <span id="toast-message" class="text-sm font-semibold text-white tracking-wide"></span>
+        </div>
+    </div>
+
     <div class="max-w-full mx-auto rounded-xl relative">
 
         <!-- REFRESH BUTTON (Visible in every panel) -->
@@ -77,6 +84,7 @@
                             <!-- DROPDOWN MENU -->
                             <div id="preset-dropdown-menu" class="hidden absolute right-0 mt-2 w-64 rounded-xl shadow-2xl bg-slate-800 ring-1 ring-black ring-opacity-5 z-20 transform transition ease-out duration-300 opacity-0 translate-y-2">
                                 <div id="preset-list" class="p-2 space-y-1" role="menu">
+                                    <!-- Populated by JS -->
                                 </div>
                             </div>
                         </div>
@@ -84,12 +92,14 @@
                 </div>
 
                 <div id="question-panels" class="flex flex-col items-center">
+                    <!-- Panels generated via interact.js -->
                 </div>
             </div>
 
             <!-- SETTINGS PAGE -->
             <div id="page-settings" class="tab-page hidden">
                 
+                <!-- Select Your GRID Header Section -->
                 <div class="card-bg p-4 rounded-t-xl flex justify-between items-center shadow-lg border-b border-slate-800/50">
                     <h3 class="text-lg font-bold text-gray-100">Select Your GRID :</h3>
                     <button onclick="openSettingsModal()" class="text-gray-300 hover:text-white transition transform hover:rotate-90 duration-300">
@@ -102,6 +112,7 @@
 
                 <div class="card-bg p-4 rounded-b-xl shadow-2xl space-y-4">
                     <div id="grid-buttons" class="flex flex-wrap gap-2 mt-1">
+                        <!-- Buttons injected by GridManager / Uifn -->
                     </div>
 
                     <div class="flex justify-center mt-4 space-x-3">
@@ -115,6 +126,7 @@
 
                     <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative mt-4">
                         <div id="current-grid" class="mx-auto w-full max-w-sm aspect-square relative flex items-center justify-center overflow-hidden rounded-lg">
+                            <!-- Preview Image -->
                         </div>
                     </div>
                 </div>
@@ -132,25 +144,31 @@
         </div>
     </div>
 
+    <!-- ================= MODALS ================= -->
+
     <!-- SETTINGS DETAIL POPUP -->
     <div id="settings-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-10 sm:p-20 z-50">
-        
         <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
             
             <div class="flex items-center space-x-2 p-6 border-b border-slate-700 flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 <h2 class="text-xl font-bold text-white tracking-wide uppercase">SETTINGS :</h2>
             </div>
 
             <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
                 
-                <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
                     <button id="pickBaseBtn" class="bg-white hover:bg-gray-200 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 flex items-center space-x-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500 fill-current" viewBox="0 0 24 24">
                             <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
                         </svg>
                         <span>Pick Presets Folder</span>
                     </button>
+                    <!-- PATH LABEL (In gray, next to button) -->
+                    <span id="basePathLabel" class="text-gray-500 font-medium text-sm overflow-hidden text-ellipsis whitespace-nowrap">/DTC_Presets</span>
+                </div>
+
+                <div class="flex justify-end">
                     <label class="custom-checkbox text-sm text-gray-300 select-none">
                         <input type="checkbox" id="toggle-edit-names" onchange="toggleSettingsInputs()">
                         <span class="box"></span>
@@ -162,10 +180,8 @@
                 <div class="space-y-4">
                     <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">FRENZY SETTINGS :</h3>
                     
-                    <!-- NEW HEADING -->
                     <h4 class="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1 pl-1">MATCH LETTER NUMBER FOR FRENZY</h4>
                     
-                    <!-- Even distribution for 5 square textboxes -->
                     <div class="flex justify-between items-center px-1">
                         <div class="flex flex-col items-center">
                             <label class="block text-[10px] text-gray-500 mb-1">F1-A2</label>
@@ -207,7 +223,7 @@
                     <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">ANSWER & MARKER SETTINGS :</h3>
                     <div class="grid grid-cols-1 gap-3">
                         <label class="custom-checkbox text-sm text-gray-300">
-                            <!-- REPLACE_IMAGE ticked by default -->
+                            <!-- Checked by default -->
                             <input type="checkbox" id="set-chk-replace" disabled checked class="settings-input">
                             <span class="box"></span>
                             REPLACE_IMAGE
@@ -300,31 +316,12 @@
                 </div>
             </div>
 
-            <!-- Footer Buttons -->
             <div class="p-6 border-t border-slate-700 flex justify-end space-x-4 flex-shrink-0">
                 <button onclick="closeSettingsModal()" class="px-6 py-2 rounded-lg text-gray-400 hover:text-white font-semibold transition duration-150">
                     CANCEL
                 </button>
                 <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition duration-200">
                     SAVE
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL: SAVE GRID -->
-    <div id="save-grid-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
-        <div class="card-bg p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
-            <h3 class="text-xl font-bold mb-4 text-white">Save Grid from AE?</h3>
-            <p class="text-gray-300 mb-6">
-                This will find the <b>"Grid"</b> composition in After Effects, take a snapshot of frame 0, and save it as a new grid preset.
-            </p>
-            <div class="flex justify-end space-x-4">
-                <button onclick="closeModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150">
-                    Cancel
-                </button>
-                <button onclick="saveGridAndCreateNew()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
-                    Save GRID from Comp
                 </button>
             </div>
         </div>
@@ -350,8 +347,7 @@
     <div id="new-preset-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
         <div class="card-bg p-6 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
             <h3 class="text-xl font-bold mb-4 text-white">Create New Preset</h3>
-            <p class="text-gray-300 mb-4">Enter a unique name for your new content preset.</p>
-            <input type="text" id="new-preset-input" placeholder="Preset Name (e.g., 'Winter Collection')"
+            <input type="text" id="new-preset-input" placeholder="Preset Name"
                    class="w-full p-3 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500 mb-6"
                    onkeydown="if(event.key === 'Enter') saveNewPreset()">
             <div class="flex justify-end space-x-4">
@@ -376,6 +372,24 @@
                 </button>
                 <button onclick="saveChangesToPreset()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
                     OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SAVE GRID -->
+    <div id="save-grid-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
+        <div class="card-bg p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
+            <h3 class="text-xl font-bold mb-4 text-white">Save Grid from AE?</h3>
+            <p class="text-gray-300 mb-6">
+                This will find the <b>"Grid"</b> composition in After Effects, take a snapshot of frame 0, and save it as a new grid preset.
+            </p>
+            <div class="flex justify-end space-x-4">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150">
+                    Cancel
+                </button>
+                <button onclick="saveGridAndCreateNew()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                    Save GRID from Comp
                 </button>
             </div>
         </div>
