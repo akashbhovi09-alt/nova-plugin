@@ -1,5 +1,5 @@
 // =================================================================================
-// ExtendScript (JSX) File System Handler & Grid Manager
+// ExtendScript (JSX) File System Handler & Asset Manager
 // =================================================================================
 
 if (typeof $._ext === 'undefined') {
@@ -20,17 +20,23 @@ $._ext.getStoredBasePath = function() {
 
 $._ext.storeBasePath = function(path) {
     var prefKey = "com.PSG.Nova.basePresetPath";
-    app.settings.saveSetting("CEP", prefKey, path);
-    $._ext.baseDirPath = path;
+    var safePath = path.replace(/\\/g, "/");
+    app.settings.saveSetting("CEP", prefKey, safePath);
+    $._ext.baseDirPath = safePath;
 }
 
-// --- FOLDER SELECTION ---
+// --- FOLDER OPERATIONS ---
 $._ext.pickBaseFolder = function() {
     try {
         var baseFolder = Folder.selectDialog("Pick Presets Folder");
         if (baseFolder === null) return "ERROR:CANCELED";
 
-        var presetsFolder = new Folder(baseFolder.fsName + "/" + "DTC_Presets");
+        var path = baseFolder.fsName.replace(/\\/g, "/");
+        if (path.indexOf("DTC_Presets") === -1) {
+            path += "/DTC_Presets";
+        }
+
+        var presetsFolder = new Folder(path);
         if (!presetsFolder.exists) presetsFolder.create();
 
         $._ext.storeBasePath(presetsFolder.fsName);
@@ -40,17 +46,40 @@ $._ext.pickBaseFolder = function() {
     }
 }
 
+$._ext.deleteFolder = function(relPath) {
+    if (!$._ext.baseDirPath) return "ERROR:Path missing";
+    var targetFolder = new Folder($._ext.baseDirPath + "/" + relPath);
+    
+    function recursiveDelete(folder) {
+        if (!folder.exists) return;
+        var files = folder.getFiles();
+        for (var i = 0; i < files.length; i++) {
+            if (files[i] instanceof Folder) {
+                recursiveDelete(files[i]);
+            } else {
+                files[i].remove();
+            }
+        }
+        folder.remove();
+    }
+
+    try {
+        recursiveDelete(targetFolder);
+        return "SUCCESS";
+    } catch(e) {
+        return "ERROR:" + e.toString();
+    }
+};
+
 // --- FILE OPERATIONS ---
 $._ext.readTextFile = function(filePath) {
     if (!$._ext.baseDirPath) return "ERROR:Base path not set.";
     var fullPath = $._ext.baseDirPath + "/" + filePath;
     var file = new File(fullPath);
-
     if (!file.exists) {
-        if (filePath.endsWith("presets_index.json")) return "ERROR:INDEX_NOT_FOUND";
-        return "ERROR:File not found at " + fullPath;
+        if (filePath.indexOf("presets_index.json") !== -1) return "ERROR:INDEX_NOT_FOUND";
+        return "ERROR:File not found";
     }
-
     try {
         file.open("r");
         file.encoding = "UTF-8";
@@ -58,7 +87,7 @@ $._ext.readTextFile = function(filePath) {
         file.close();
         return content;
     } catch (e) {
-        return "ERROR:Read failed: " + e.toString();
+        return "ERROR:" + e.toString();
     }
 }
 
@@ -66,34 +95,26 @@ $._ext.writeTextFile = function(filePath, content) {
     if (!$._ext.baseDirPath) return "ERROR:Base path not set.";
     var fullPath = $._ext.baseDirPath + "/" + filePath;
     var file = new File(fullPath);
-
     try {
         var parentFolder = file.parent;
-        if (!parentFolder.exists) parentFolder.create();
-
+        // Robust directory creation for nested paths
+        if (!parentFolder.exists) {
+            var foldersToCreate = [];
+            var curr = parentFolder;
+            while (curr && !curr.exists) {
+                foldersToCreate.push(curr);
+                curr = curr.parent;
+            }
+            while (foldersToCreate.length > 0) {
+                foldersToCreate.pop().create();
+            }
+        }
+        
         file.open("w");
         file.encoding = "UTF-8";
         file.write(content);
         file.close();
         return "SUCCESS";
-    } catch (e) {
-        return "ERROR:Write failed: " + e.toString();
-    }
-}
-
-$._ext.readBase64File = function(filePath) {
-    if (!$._ext.baseDirPath) return "ERROR:Base path not set.";
-    var fullPath = $._ext.baseDirPath + "/" + filePath;
-    var file = new File(fullPath);
-
-    if (!file.exists) return "ERROR:File not found " + fullPath;
-
-    try {
-        file.open('r');
-        file.encoding = 'BINARY';
-        var binaryContent = file.read();
-        file.close();
-        return binaryContent.toSource();
     } catch (e) {
         return "ERROR:" + e.toString();
     }
@@ -105,196 +126,113 @@ $._ext.copyFile = function(sourcePath, destRelPath) {
     var destFullPath = $._ext.baseDirPath + "/" + destRelPath;
     var sourceFile = new File(sourcePath);
     var destFile = new File(destFullPath);
-
-    if (!sourceFile.exists) return "ERROR:Source file missing at " + sourcePath;
-
+    
+    if (!sourceFile.exists) return "ERROR:Source file missing";
+    
     try {
         var targetFolder = destFile.parent;
+        // Robust directory creation for assets subfolder
         if (!targetFolder.exists) {
             var foldersToCreate = [];
-            var currentFolder = targetFolder;
-            while (!currentFolder.exists) {
-                foldersToCreate.push(currentFolder);
-                currentFolder = currentFolder.parent;
-                if (!currentFolder) break;
+            var curr = targetFolder;
+            while (curr && !curr.exists) {
+                foldersToCreate.push(curr);
+                curr = curr.parent;
             }
             while (foldersToCreate.length > 0) {
-                var folder = foldersToCreate.pop();
-                if (!folder.create()) return "ERROR:Could not create folder " + folder.fsName;
+                foldersToCreate.pop().create();
             }
         }
-        if (sourceFile.copy(destFile)) return "SUCCESS";
-        else return "ERROR:Copy failed";
-    } catch (e) {
-        return "ERROR:Copy Exception: " + e.toString();
-    }
+
+        if (destFile.exists) destFile.remove(); 
+        
+        if (sourceFile.copy(destFile)) {
+            return "SUCCESS";
+        } else {
+            return "ERROR:Copy operation failed";
+        }
+    } catch (e) { return "ERROR:" + e.toString(); }
 }
 
-// =================================================================================
-// DTC GRID MANAGER (Snapshot & Renumbering)
-// =================================================================================
-
+// --- GRID OPERATIONS ---
 $._ext.saveSnapshot = function() {
     try {
-        // 1. Validate Base Path
-        if (!$._ext.baseDirPath) $._ext.getStoredBasePath();
-        if (!$._ext.baseDirPath) {
-            return JSON.stringify({ status: "error", message: "Base path not set. Please pick a folder in Settings." });
-        }
-
+        if (!$._ext.baseDirPath) return JSON.stringify({ status: "error", message: "Path missing" });
         var gridsFolder = new Folder($._ext.baseDirPath + "/DTC_Grids");
         if (!gridsFolder.exists) gridsFolder.create();
 
-        // 2. Find "Grid" Comp
-        var gridCompName = "Grid";
-        var proj = app.project;
-        if (!proj) return JSON.stringify({ status: "error", message: "No project open." });
-
         var gridComp = null;
-        for (var i = 1; i <= proj.numItems; i++) {
-            var item = proj.item(i);
-            if (item instanceof CompItem && item.name === gridCompName) {
-                gridComp = item;
-                break;
+        for (var i = 1; i <= app.project.numItems; i++) {
+            if (app.project.item(i).name === "Grid") { 
+                gridComp = app.project.item(i); 
+                break; 
             }
         }
+        
+        if (!gridComp) return JSON.stringify({ status: "error", message: "Comp 'Grid' missing" });
 
-        if (!gridComp) {
-            return JSON.stringify({ status: "error", message: "Composition named 'Grid' was not found in the project." });
-        }
-
-        // 3. Determine Next ID (Scan existing numbers)
-        var files = gridsFolder.getFiles();
+        var files = gridsFolder.getFiles("*.png");
         var maxId = 0;
-        if (files) {
-            for (var f = 0; f < files.length; f++) {
-                var match = files[f].name.match(/^(\d+)\.(png|jpg)$/i);
-                if (match) {
-                    var fid = parseInt(match[1]);
-                    if (fid > maxId) maxId = fid;
-                }
+        for (var f = 0; f < files.length; f++) {
+            var match = files[f].name.match(/^(\d+)\.png$/);
+            if (match) {
+                var fid = parseInt(match[1]);
+                if (fid > maxId) maxId = fid;
             }
         }
         
         var newId = maxId + 1;
-        var fileName = newId + ".png";
-        var destFile = new File(gridsFolder.fsName + "/" + fileName);
+        var destFile = new File(gridsFolder.fsName + "/" + newId + ".png");
+        
+        var oldRes = gridComp.resolutionFactor;
+        gridComp.resolutionFactor = [1, 1];
+        gridComp.saveFrameToPng(0, destFile);
+        gridComp.resolutionFactor = oldRes;
 
-        // 4. Save Image
-        var originalRes = gridComp.resolutionFactor.slice();
-        gridComp.resolutionFactor = [1, 1]; // Set resolution to Full for clear snapshot
-
-        // --- FIX: PURGE CACHE TO ENSURE FRESH CAPTURE ---
-        app.purge(PurgeTarget.IMAGE_CACHES);
-
-        try {
-            gridComp.saveFrameToPng(0, destFile);
-        } catch (e) {
-            gridComp.resolutionFactor = originalRes;
-            return JSON.stringify({ status: "error", message: "SaveFrame failed: " + e.toString() });
-        }
-        gridComp.resolutionFactor = originalRes;
-
-        return JSON.stringify({
-            status: "success",
-            id: newId,
-            fileName: fileName
-        });
-
-    } catch(err) {
-        return JSON.stringify({ status: "error", message: "Unexpected JSX Error: " + err.toString() });
-    }
+        return JSON.stringify({ status: "success", id: newId, fileName: newId + ".png" });
+    } catch(e) { return JSON.stringify({ status: "error", message: e.toString() }); }
 };
 
 $._ext.getGridFiles = function() {
     try {
-        if (!$._ext.baseDirPath) $._ext.getStoredBasePath();
         if (!$._ext.baseDirPath) return "[]";
-
         var gridsFolder = new Folder($._ext.baseDirPath + "/DTC_Grids");
         if (!gridsFolder.exists) return "[]";
-
-        var files = gridsFolder.getFiles();
-        if (!files) return "[]";
-
+        
+        var files = gridsFolder.getFiles("*.png");
         var gridList = [];
         for (var f = 0; f < files.length; f++) {
-            // Only accept Number.png (strict naming to avoid junk)
-            var match = files[f].name.match(/^(\d+)\.png$/i);
+            var match = files[f].name.match(/^(\d+)\.png$/);
             if (match) {
-                gridList.push({
-                    id: parseInt(match[1]),
-                    fileName: files[f].name
-                });
+                gridList.push({ id: parseInt(match[1]), fileName: files[f].name });
             }
         }
-        // Sort numerically
+        
         gridList.sort(function(a,b){ return a.id - b.id });
-
         return JSON.stringify(gridList);
-    } catch(e) {
-        return "[]";
-    }
+    } catch(e) { return "[]"; }
 };
 
 $._ext.deleteGridFile = function(fileName) {
     try {
-        if (!$._ext.baseDirPath) return "ERROR:Base path not set";
-        
+        if (!$._ext.baseDirPath) return "ERROR:Path missing";
         var gridsFolder = new Folder($._ext.baseDirPath + "/DTC_Grids");
-        if (!gridsFolder.exists) return "ERROR: Grid folder missing";
-
-        // 1. Delete the specific file
         var fileToDelete = new File(gridsFolder.fsName + "/" + fileName);
-        if (fileToDelete.exists) {
-            if(!fileToDelete.remove()) return "ERROR: Could not delete file (Locked?)";
-        } else {
-            // If file doesn't exist, we still proceed to renumbering/healing
-        }
+        if (fileToDelete.exists) fileToDelete.remove();
 
-        // 2. SELF-HEALING RENUMBERING
-        // Scan folder for ALL valid pngs
-        var files = gridsFolder.getFiles();
-        var remainingGrids = [];
-
-        for (var i = 0; i < files.length; i++) {
-            var m = files[i].name.match(/^(\d+)\.png$/i);
-            if (m) {
-                remainingGrids.push({
-                    id: parseInt(m[1]),
-                    file: files[i]
-                });
-            }
-        }
-
-        // Sort numerically (Critical)
-        remainingGrids.sort(function(a,b){ return a.id - b.id });
-
-        // Iterate and enforce sequential numbering (1, 2, 3...)
-        for (var k = 0; k < remainingGrids.length; k++) {
-            var grid = remainingGrids[k];
-            var expectedId = k + 1;
-            
-            if (grid.id !== expectedId) {
-                var newName = expectedId + ".png";
-                // Only rename if it's different (File.rename() in ExtendScript works on disk)
-                if (!grid.file.rename(newName)) {
-                    // If rename fails, we abort renumbering to prevent data loss
-                    return "ERROR: Renumbering failed at " + grid.id + " -> " + expectedId;
-                }
-            }
-        }
+        var files = gridsFolder.getFiles("*.png");
+        files.sort(function(a, b) {
+            var nA = parseInt(a.name.match(/\d+/));
+            var nB = parseInt(b.name.match(/\d+/));
+            return nA - nB;
+        });
         
-        // Optional: Clean up grid_index.json if it exists (since we don't use it anymore)
-        var legacyJson = new File(gridsFolder.fsName + "/grid_index.json");
-        if (legacyJson.exists) legacyJson.remove();
-
+        for (var k = 0; k < files.length; k++) {
+            var expectedName = (k + 1) + ".png";
+            if (files[k].name !== expectedName) {
+                files[k].rename(expectedName);
+            }
+        }
         return "SUCCESS";
-
-    } catch(e) {
-        return "ERROR: " + e.toString();
-    }
+    } catch(e) { return "ERROR:" + e.toString(); }
 };
-
-// Automatically try to load the path on script load
-$._ext.getStoredBasePath();

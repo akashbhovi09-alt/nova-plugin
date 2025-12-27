@@ -10,7 +10,14 @@
 </head>
 <body class="min-h-screen p-4 sm:p-6 md:p-10 text-white antialiased">
 
-    <div class="max-w-full mx-auto rounded-xl">
+    <div class="max-w-full mx-auto rounded-xl relative">
+
+        <!-- REFRESH BUTTON (Visible in every panel) -->
+        <button onclick="location.reload()" class="fixed top-2 left-2 p-1.5 rounded-md bg-slate-800/50 hover:bg-slate-700 transition z-50 group border border-slate-700/50" title="Reload Plugin">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 group-hover:text-white">
+                <path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+        </button>
 
         <header class="flex justify-center items-center mb-10 text-sm font-medium space-x-4">
             <button id="tab-lotso" onclick="setActiveTab('lotso')" class="tab-button px-4 py-2 rounded-full transition duration-200">
@@ -55,11 +62,11 @@
                         </div>
                         
                         <!-- PRESET DROPDOWN -->
-                        <div class="relative inline-block text-left">
+                        <div class="relative inline-block text-left" id="preset-dropdown-container">
                             <div class="flex items-center space-x-2 p-1.5 card-bg rounded-xl shadow-lg cursor-pointer hover:bg-slate-700 transition duration-150"
                                 onclick="togglePresetDropdown()">
 
-                                <button type="button" class="p-1 rounded-full bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                                <button type="button" class="p-1 rounded-full bg-slate-900 focus:outline-none">
                                     <img src="assets/save.png" alt="Save Preset" class="w-6 h-6 object-contain" />
                                 </button>
                                 <span id="selected-preset-name" class="text-sm font-semibold text-gray-100">-- Select Preset --</span>
@@ -68,8 +75,8 @@
                                 </svg>
                             </div>
                             <!-- DROPDOWN MENU -->
-                            <div id="preset-dropdown-menu" class="hidden absolute right-0 mt-2 w-60 rounded-xl shadow-2xl bg-slate-800 ring-1 ring-black ring-opacity-5 z-20 transform transition ease-out duration-300 opacity-0 translate-y-2" style="min-width: 15rem;">
-                                <div id="preset-list" class="p-2 space-y-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                            <div id="preset-dropdown-menu" class="hidden absolute right-0 mt-2 w-64 rounded-xl shadow-2xl bg-slate-800 ring-1 ring-black ring-opacity-5 z-20 transform transition ease-out duration-300 opacity-0 translate-y-2">
+                                <div id="preset-list" class="p-2 space-y-1" role="menu">
                                 </div>
                             </div>
                         </div>
@@ -80,7 +87,7 @@
                 </div>
             </div>
 
-            <!-- SETTINGS PAGE (NEW LAYOUT) -->
+            <!-- SETTINGS PAGE -->
             <div id="page-settings" class="tab-page hidden">
                 
                 <!-- Select Your GRID Header Section -->
@@ -98,19 +105,20 @@
                 <!-- Grid Buttons & Preview -->
                 <div class="card-bg p-4 rounded-b-xl shadow-2xl space-y-4">
                     <div id="grid-buttons" class="flex flex-wrap gap-2 mt-1">
-                        <!-- Dynamically loaded grid buttons will appear here -->
                     </div>
 
-                    <div class="flex justify-center mt-4">
+                    <div class="flex justify-center mt-4 space-x-3">
                         <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-200">
                             Load GRID
+                        </button>
+                        <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-200">
+                            Gen GridNum
                         </button>
                     </div>
 
                     <!-- PREVIEW CONTAINER -->
-                    <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative group-hover-container mt-4">
+                    <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative mt-4">
                         <div id="current-grid" class="mx-auto w-full max-w-sm aspect-square relative flex items-center justify-center overflow-hidden rounded-lg">
-                            <!-- Grid Image Appears Here -->
                         </div>
                     </div>
                 </div>
@@ -130,40 +138,25 @@
 
     <!-- ================= MODALS ================= -->
 
-    <!-- SETTINGS DETAIL POPUP (UPDATED: High Padding & Square Aspect) -->
-    <!-- 'p-10 sm:p-20' provides the requested spacing around the modal -->
+    <!-- SETTINGS DETAIL POPUP -->
     <div id="settings-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-10 sm:p-20 z-50">
         
-        <!-- Modal Content: Enforced Square Aspect Ratio relative to smaller screen dimension -->
-        <!-- 'w-full' tries to fill width, 'aspect-square' enforces height to match width -->
-        <!-- 'max-w-[min(80vw,80vh)]' ensures it never overflows screen in either direction while staying square -->
-        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
+        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50">
             
-            <!-- Modal Header -->
             <div class="flex items-center space-x-2 p-6 border-b border-slate-700 flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <h2 class="text-xl font-bold text-white tracking-wide">SETTINGS :</h2>
+                <h2 class="text-xl font-bold text-white tracking-wide uppercase">SETTINGS :</h2>
             </div>
 
-            <!-- Scrollable Body: flex-1 ensures it takes remaining height -->
             <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
                 
-                <!-- Folder Picker Section -->
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center justify-between">
                     <button id="pickBaseBtn" class="bg-white hover:bg-gray-200 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 flex items-center space-x-2">
-                        <!-- Mac-style blue folder icon -->
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500 fill-current" viewBox="0 0 24 24">
                             <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
                         </svg>
                         <span>Pick Presets Folder</span>
                     </button>
-                    <span id="basePathLabel" class="text-gray-400 font-medium text-sm overflow-hidden text-ellipsis whitespace-nowrap">
-                        /DTC_Presets
-                    </span>
-                </div>
-
-                <!-- Edit Names Checkbox -->
-                <div class="flex justify-end">
                     <label class="custom-checkbox text-sm text-gray-300 select-none">
                         <input type="checkbox" id="toggle-edit-names" onchange="toggleSettingsInputs()">
                         <span class="box"></span>
@@ -171,11 +164,68 @@
                     </label>
                 </div>
 
+                <!-- 1. FRENZY SETTINGS -->
+                <div class="space-y-4">
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">FRENZY SETTINGS :</h3>
+                    <div class="flex items-center space-x-2">
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-gray-500 mb-1">F1-A2</label>
+                            <input type="text" id="set-f1-a2" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-gray-500 mb-1">F2-A3</label>
+                            <input type="text" id="set-f2-a3" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-gray-500 mb-1">F3-A4</label>
+                            <input type="text" id="set-f3-a4" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-gray-500 mb-1">F4-A5</label>
+                            <input type="text" id="set-f4-a5" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-gray-500 mb-1">F5-A6</label>
+                            <input type="text" id="set-f5-a6" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">MIN_TILE_GAP :</span>
+                            <input type="text" id="set-min-gap" disabled class="settings-input w-24 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">RANDOM SEED :</span>
+                            <input type="text" id="set-rand-seed" disabled class="settings-input w-24 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-700/50"></div>
+
+                <!-- 2. ANSWER & MARKER SETTINGS -->
+                <div class="space-y-4">
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">ANSWER & MARKER SETTINGS :</h3>
+                    <div class="grid grid-cols-1 gap-3">
+                        <label class="custom-checkbox text-sm text-gray-300">
+                            <input type="checkbox" id="set-chk-replace" disabled class="settings-input">
+                            <span class="box"></span>
+                            REPLACE_IMAGE
+                        </label>
+                        <label class="custom-checkbox text-sm text-gray-300">
+                            <input type="checkbox" id="set-chk-preserve" disabled class="settings-input">
+                            <span class="box"></span>
+                            PRESERVE_MARKER_FRAMES
+                        </label>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-700/50"></div>
+
                 <!-- COMP NAMES SECTION -->
                 <div class="space-y-3">
-                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm">COMP NAMES :</h3>
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">COMP NAMES :</h3>
                     <div class="grid grid-cols-1 gap-2">
-                        <!-- Row -->
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">COMP_GRID_MAIN :</span>
                             <input type="text" id="set-comp-main" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
@@ -199,7 +249,7 @@
 
                 <!-- LAYER NAMES SECTION -->
                 <div class="space-y-3">
-                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm">LAYER NAMES :</h3>
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">LAYER NAMES :</h3>
                     <div class="grid grid-cols-1 gap-2">
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_CONTROLLER :</span>
@@ -219,35 +269,6 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="border-t border-slate-700/50 my-2"></div>
-
-                <!-- EFFECT NAMES SECTION -->
-                <div class="space-y-3">
-                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm">EFFECT NAMES :</h3>
-                    <div class="grid grid-cols-1 gap-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-300 text-sm">PROP_TILE_NUM :</span>
-                            <input type="text" id="set-fx-num" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-300 text-sm">EFFECT_ROW_SLIDER :</span>
-                            <input type="text" id="set-fx-row" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-300 text-sm">EFFECT_COL_SLIDER :</span>
-                            <input type="text" id="set-fx-col" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-300 text-sm">ANSWERS_ROTATION :</span>
-                            <input type="text" id="set-fx-rot" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-300 text-sm">ANSWERS_LETTER_PREFIX :</span>
-                            <input type="text" id="set-fx-letter" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- Footer Buttons -->
@@ -263,7 +284,7 @@
     </div>
 
     <!-- MODAL: SAVE GRID -->
-    <div id="save-grid-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4">
+    <div id="save-grid-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
         <div class="card-bg p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
             <h3 class="text-xl font-bold mb-4 text-white">Save Grid from AE?</h3>
             <p class="text-gray-300 mb-6">
@@ -281,15 +302,15 @@
     </div>
 
     <!-- MODAL: DELETE CONFIRMATION -->
-    <div id="delete-grid-confirm-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
-        <div class="card-bg p-6 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
-            <h3 class="text-xl font-bold mb-4 text-red-400">Delete Grid?</h3>
-            <p id="delete-grid-message" class="text-gray-300 mb-6">Are you sure you want to delete this grid?</p>
+    <div id="delete-confirm-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-[100]">
+        <div class="card-bg p-6 rounded-xl shadow-2xl w-full max-w-sm border border-red-500/30 transform transition-all duration-300 scale-100">
+            <h3 class="text-xl font-bold mb-4 text-red-400" id="delete-modal-title">Delete?</h3>
+            <p id="delete-modal-message" class="text-gray-300 mb-6"></p>
             <div class="flex justify-end space-x-4">
-                <button onclick="closeDeleteGridModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150">
                     Cancel
                 </button>
-                <button onclick="confirmDeleteGrid()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                <button id="delete-modal-confirm-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-200">
                     Delete
                 </button>
             </div>
@@ -332,7 +353,8 @@
     </div>
 
     <script src="js/Libs/CSInterface.js"></script>
-    <script src="js/Uijs.js"></script>
+    <script src="js/interact.js"></script>
+    <script src="js/Uifn.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

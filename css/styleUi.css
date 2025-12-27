@@ -2,6 +2,7 @@
 body {
     font-family: 'Inter', sans-serif;
     background-color: #0b071e; /* Dark theme background based on image inference */
+    user-select: none;
 }
 /* Custom class for the deep dark card background */
 .card-bg {
@@ -27,9 +28,9 @@ body {
     transform: rotate(-90deg); /* Rotate the down chevron to the side/left */
 }
 
-/* Class to enforce minimum panel width, preventing excessive compression and unwanted height increase */
+/* Class to enforce minimum panel width, preventing excessive compression */
 .min-panel-width {
-    min-width: 450px; /* Ensures panels maintain a usable width and don't collapse too much */
+    min-width: 450px;
 }
 
 /* Specific styles for the crossword grid in SETTINGS tab */
@@ -59,8 +60,8 @@ body {
 }
 /* Modal Overlay Styling */
 .modal-overlay {
-    background-color: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(5px);
+    background-color: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
     z-index: 1000;
 }
 
@@ -72,21 +73,21 @@ body {
 
 /* Custom radio styling based on state */
 .file-radio-dot {
-    width: 16px; /* w-4 */
-    height: 16px; /* h-4 */
-    border-radius: 9999px; /* rounded-full */
-    border: 2px solid #9CA3AF; /* border-gray-500 */
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    border: 2px solid #9CA3AF;
     transition: all 0.2s;
 }
 .file-radio-input:checked + .file-radio-dot {
-    border-color: #FFFFFF; /* border-white */
-    background-color: #3B82F6; /* bg-blue-500 */
+    border-color: #FFFFFF;
+    background-color: #3B82F6;
 }
 .file-radio-input:focus + .file-radio-dot {
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5); /* Custom focus ring */
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
 }
 
-/* Custom styling for Checkboxes (mimicking the original design circles) */
+/* Custom styling for Checkboxes */
 .custom-checkbox {
     cursor: pointer;
     display: inline-flex;
@@ -98,7 +99,7 @@ body {
 .custom-checkbox .box {
     width: 1rem;
     height: 1rem;
-    border-radius: 4px; /* Slightly rounded box for checkbox look */
+    border-radius: 4px;
     border: 2px solid #9CA3AF;
     margin-right: 0.5rem;
     transition: all 0.2s;
@@ -106,6 +107,7 @@ body {
     align-items: center;
     justify-content: center;
     position: relative;
+    flex-shrink: 0;
 }
 .custom-checkbox input[type="checkbox"]:checked + .box {
     border-color: #3B82F6;
@@ -121,30 +123,23 @@ body {
     transform: rotate(45deg) translate(-1px, -1px);
 }
 
-/* --- New styles for smooth question panel visibility (CONTENTS) --- */
+/* Question panel visibility animations */
 .question-panel-wrapper {
-    /* Added transform to transition properties */
     transition: max-height 0.6s ease-in-out, opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
-    max-height: 500px; /* Maximum height when visible */
+    max-height: 600px;
     opacity: 1;
-    transform: translateY(0); /* Normal position */
+    transform: translateY(0);
     overflow: hidden;
-    /* Ensure wrapper maintains a consistent margin when visible */
-    margin-bottom: 1.5rem; /* space-y-6 equivalent */
+    margin-bottom: 1.5rem;
 }
 .question-panel-wrapper.hidden-panel {
     max-height: 0;
     opacity: 0;
-    transform: translateY(-30px); /* Move up when hiding */
-    margin-bottom: 0; /* Collapse margin */
-}
-/* Style for when panel is appearing (it transitions from a higher position) */
-.question-panel-wrapper:not(.hidden-panel) {
-    transform: translateY(0);
+    transform: translateY(-30px);
+    margin-bottom: 0;
 }
 
-/* --- Settings Modal Specific Styles --- */
-/* Custom Scrollbar for Settings Modal */
+/* Custom Scrollbars */
 .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
 }
@@ -162,18 +157,30 @@ body {
 
 /* Settings Inputs styling */
 .settings-input {
-    background-color: #334155; /* Slate 700ish to match image */
+    background-color: #334155;
     color: #e2e8f0;
-    border: 1px solid transparent;
+    border: 1px solid #4a5568;
     transition: all 0.2s;
+    outline: none !important;
 }
 .settings-input:disabled {
-    opacity: 0.7;
+    opacity: 0.35;
     cursor: not-allowed;
-    background-color: #334155; /* Keep background same but dim text via opacity */
+    background-color: #1e293b;
+    border-color: #2d3748;
 }
 .settings-input:not(:disabled):focus {
     border-color: #3b82f6;
-    outline: none;
     background-color: #1e293b;
+}
+
+/* Specific styling for Frenzy square inputs in settings */
+.frenzy-input-sq {
+    aspect-ratio: 1 / 1;
+    text-align: center;
+}
+
+/* Presets Dropdown hover effects for delete buttons */
+#preset-list .group:hover .group-hover\:block {
+    display: block !important;
 }
