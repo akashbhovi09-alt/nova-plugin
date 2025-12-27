@@ -23,6 +23,11 @@ const DEFAULT_SETTINGS = {
     f3a4: "2",
     f4a5: "2",
     f5a6: "2",
+    af1: "5",
+    af2: "3",
+    af3: "3",
+    af4: "3",
+    af5: "3",
     minGap: "2",
     randSeed: "12345",
     replaceImage: true,
@@ -297,6 +302,7 @@ function openSettingsModal() {
     document.getElementById('toggle-edit-names').checked = savedSettings.isCustomNamesEnabled;
     const fields = [
         ['set-f1-a2', 'f1a2'], ['set-f2-a3', 'f2a3'], ['set-f3-a4', 'f3a4'], ['set-f4-a5', 'f4a5'], ['set-f5-a6', 'f5a6'],
+        ['set-af1', 'af1'], ['set-af2', 'af2'], ['set-af3', 'af3'], ['set-af4', 'af4'], ['set-af5', 'af5'],
         ['set-min-gap', 'minGap'], ['set-rand-seed', 'randSeed'],
         ['set-chk-replace', 'replaceImage'], ['set-chk-preserve', 'preserveMarker'],
         ['set-comp-main', 'compMain'], ['set-comp-qa', 'compQa'], ['set-comp-grid', 'compGrid'], ['set-comp-answers', 'compAnswers'],
@@ -325,6 +331,11 @@ function toggleSettingsInputs() {
         document.getElementById('set-f3-a4').value = DEFAULT_SETTINGS.f3a4;
         document.getElementById('set-f4-a5').value = DEFAULT_SETTINGS.f4a5;
         document.getElementById('set-f5-a6').value = DEFAULT_SETTINGS.f5a6;
+        document.getElementById('set-af1').value = DEFAULT_SETTINGS.af1;
+        document.getElementById('set-af2').value = DEFAULT_SETTINGS.af2;
+        document.getElementById('set-af3').value = DEFAULT_SETTINGS.af3;
+        document.getElementById('set-af4').value = DEFAULT_SETTINGS.af4;
+        document.getElementById('set-af5').value = DEFAULT_SETTINGS.af5;
         document.getElementById('set-min-gap').value = DEFAULT_SETTINGS.minGap;
         document.getElementById('set-rand-seed').value = DEFAULT_SETTINGS.randSeed;
         document.getElementById('set-chk-replace').checked = DEFAULT_SETTINGS.replaceImage;

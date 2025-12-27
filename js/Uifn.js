@@ -3,35 +3,13 @@
  * Handling CSInterface, After Effects communication, and File System logic.
  */
 
-// --- CSInterface Bridge (Maintaining original logic) ---
-if (typeof CSInterface === 'undefined') {
-    console.warn("Using Mock CSInterface for environment stability");
-    window.CSInterface = function() {
-        this.evalScript = function(script, cb) {
-            setTimeout(() => {
-                if(script.includes("pickBaseFolder")) cb("/MOCK/DTC_Presets");
-                else if(script.includes("copyFile")) cb("SUCCESS");
-                else if(script.includes("readBase64File")) cb("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
-                else if(script.includes("readTextFile") && script.includes("presets_index.json")) cb("[]");
-                else if(script.includes("readTextFile")) cb('{"id":"mock","name":"Mock","placeholders":{"data":{},"images":[]}}');
-                // Grid Mocks
-                else if(script.includes("getGridFiles")) cb(JSON.stringify([{id:1, fileName:"1.png"}, {id:2, fileName:"2.png"}]));
-                else if(script.includes("saveSnapshot")) cb(JSON.stringify({status:"success", id: 3, fileName:"3.png"}));
-                else if(script.includes("deleteGridFile")) cb("SUCCESS");
-                else cb("[]");
-            }, 100);
-        }
-    };
-}
-
 const csInterface = new CSInterface();
 let baseDirPath = null;
 let presetsIndex = [];
 let loadedPreset = null;
-let questionImages = {}; // Stores slot: { name, path }
+let questionImages = {}; 
 let availableGrids = [];
 
-// --- JSX / STRING UTILS ---
 function escapeForJSX(str) { 
     if (!str) return "";
     return str.replace(/\\/g, '\\\\').replace(/\"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
@@ -46,7 +24,6 @@ function evalScriptPromise(script) {
     });
 }
 
-// --- INIT SEQUENCE ---
 window.onload = async () => {
     if(typeof renderQuestionPanels === 'function') renderQuestionPanels();
     if(typeof updateContentMode === 'function') updateContentMode(true);
@@ -70,26 +47,20 @@ window.onload = async () => {
                 const path = await evalScriptPromise("$._ext.pickBaseFolder()");
                 if(path && path !== "ERROR:CANCELED") {
                     await setBaseHandleAndInit(path);
-                    showToast("Folder selected successfully! ");
+                    showToast("Folder selected successfully!");
                 } else {
-                    // REQUIREMENT: Show cancellation message with professional formatting
                     const displayPath = (typeof toDisplayPath === 'function') ? toDisplayPath(baseDirPath) : "/DTC_Presets";
                     showToast(`Current preset folder is "${displayPath}"`);
                 }
-            } catch(e) { 
-                //showToast("Error: " + e); 
-                showToast("CANCELED SELECTION"); 
-            }
+            } catch(e) { showToast("Error: " + e); }
         });
     }
 };
 
 async function setBaseHandleAndInit(path) {
-    // Normalize path to forward slashes for internal consistency
     baseDirPath = path.replace(/\\/g, '/');
     const label = document.getElementById('basePathLabel');
     if(label) { 
-        // REQUIREMENT: Show path beside button in gray (e.g. /DTC_Presets)
         label.textContent = (typeof toDisplayPath === 'function') ? toDisplayPath(baseDirPath) : "/DTC_Presets"; 
         label.title = baseDirPath; 
     }
@@ -97,7 +68,6 @@ async function setBaseHandleAndInit(path) {
     await loadGridsFromDisk();
 }
 
-// --- PRESET ACTIONS ---
 async function loadIndex() {
     try {
         const txt = await evalScriptPromise('$._ext.readTextFile("presets_index.json")');
@@ -109,9 +79,7 @@ async function loadIndex() {
 function renderPresetDropdownItems() {
     const list = document.getElementById('preset-list');
     if(!list) return;
-    
     const sorted = presetsIndex.sort((a,b) => (b.updatedAt||'').localeCompare(a.updatedAt||''));
-    
     let itemsHtml = sorted.map(p => `
         <div class="group relative flex items-center px-1 rounded-lg hover:bg-slate-700 transition">
             <button onclick="selectPreset('${p.id}')" class="flex-grow text-left px-3 py-2 text-sm truncate ${loadedPreset && p.id === loadedPreset.id ? 'text-blue-400 font-bold' : 'text-gray-200'}">
@@ -122,13 +90,7 @@ function renderPresetDropdownItems() {
             </button>
         </div>
     `).join('');
-    
-    itemsHtml += `
-        <div class="border-t border-slate-700 my-1"></div>
-        <button onclick="openNewPresetModal()" class="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-slate-700 rounded-lg">+ Create New Preset</button>
-        <button onclick="saveChangesConfirmation()" ${loadedPreset ? '' : 'disabled'} class="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-700 rounded-lg disabled:opacity-30">Save Changes</button>
-    `;
-    
+    itemsHtml += `<div class="border-t border-slate-700 my-1"></div><button onclick="openNewPresetModal()" class="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-slate-700 rounded-lg">+ Create New Preset</button><button onclick="saveChangesConfirmation()" ${loadedPreset ? '' : 'disabled'} class="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-700 rounded-lg disabled:opacity-30">Save Changes</button>`;
     list.innerHTML = itemsHtml;
     const nameSpan = document.getElementById('selected-preset-name');
     if(nameSpan) nameSpan.textContent = loadedPreset ? loadedPreset.name : '-- Select Preset --';
@@ -138,12 +100,10 @@ async function selectPreset(id) {
     if(typeof togglePresetDropdown === 'function') togglePresetDropdown();
     const entry = presetsIndex.find(p => p.id === id);
     if(!entry) return;
-    
     try {
         const jsonPath = escapeForJSX(`${entry.folder}/preset.json`);
         const txt = await evalScriptPromise(`$._ext.readTextFile("${jsonPath}")`);
         if(!txt || txt.startsWith("ERROR:")) return showToast("Error reading preset");
-        
         const json = JSON.parse(txt);
         loadedPreset = { ...json, folder: entry.folder }; 
         loadDataIntoForm(json.placeholders?.data, json.placeholders?.images || [], entry.folder);
@@ -155,41 +115,24 @@ async function saveNewPreset() {
     const nameInput = document.getElementById('new-preset-input');
     const name = nameInput ? nameInput.value.trim() : "";
     if(!name) return;
-    
     const id = Date.now().toString(36);
     const folder = `${id}_${slugify(name)}`;
     const formData = getCurrentFormData();
-    
     const imagesMeta = [];
     for (const slot in questionImages) {
         const img = questionImages[slot];
         if (!img || !img.path) continue;
-        
-        const sourcePath = escapeForJSX(img.path);
-        const destRelPath = escapeForJSX(`${folder}/assets/${img.name}`);
-        
-        try {
-            const res = await evalScriptPromise(`$._ext.copyFile("${sourcePath}", "${destRelPath}")`);
-            if (res === "SUCCESS") {
-                imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
-            }
-        } catch(e) { console.error("Asset Copy Fail:", e); }
+        const res = await evalScriptPromise(`$._ext.copyFile("${escapeForJSX(img.path)}", "${escapeForJSX(folder + '/assets/' + img.name)}")`);
+        if (res === "SUCCESS") imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
     }
-
     const presetData = { id, name, createdAt: nowISO(), updatedAt: nowISO(), placeholders: { data: formData, images: imagesMeta } };
-    const jsonStr = escapeForJSX(JSON.stringify(presetData));
-    
     try {
-        await evalScriptPromise(`$._ext.writeTextFile("${folder}/preset.json", '${jsonStr}')`);
+        await evalScriptPromise(`$._ext.writeTextFile("${folder}/preset.json", '${escapeForJSX(JSON.stringify(presetData))}')`);
         presetsIndex.push({ id, name, folder, updatedAt: presetData.updatedAt });
-        const idxStr = escapeForJSX(JSON.stringify(presetsIndex));
-        await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${idxStr}')`);
-        
+        await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${escapeForJSX(JSON.stringify(presetsIndex))}')`);
         loadedPreset = { ...presetData, folder };
         if(typeof closeNewPresetModal === 'function') closeNewPresetModal();
         renderPresetDropdownItems();
-        
-        // REQUIREMENT: Professional Toast instead of standard alert
         showToast(`Preset '${name}' created!`);
     } catch(e) { showToast("Save failed"); }
 }
@@ -211,52 +154,33 @@ async function saveChangesToPreset() {
     if (!loadedPreset) return;
     const entry = presetsIndex.find(p => p.id === loadedPreset.id);
     if (!entry) return;
-
     const folder = entry.folder;
     const formData = getCurrentFormData();
     let imagesMeta = [];
-
     for (const slot in questionImages) {
         const img = questionImages[slot];
         if (!img || !img.path) continue;
-        
-        const sourcePath = escapeForJSX(img.path);
-        const destRelPath = escapeForJSX(`${folder}/assets/${img.name}`);
-        
-        // Normalize paths for comparison to avoid redundant copying
         const fullDest = `${baseDirPath}/${folder}/assets/${img.name}`.replace(/\\/g, '/');
         const cleanSource = img.path.replace(/\\/g, '/');
-        
         if (cleanSource !== fullDest) {
-            try {
-                const res = await evalScriptPromise(`$._ext.copyFile("${sourcePath}", "${destRelPath}")`);
-                if (res === "SUCCESS") {
-                    imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
-                }
-            } catch(e) { console.error(e); }
+            const res = await evalScriptPromise(`$._ext.copyFile("${escapeForJSX(img.path)}", "${escapeForJSX(folder + '/assets/' + img.name)}")`);
+            if (res === "SUCCESS") imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
         } else {
             imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
         }
     }
-
     const updatedData = { ...loadedPreset, updatedAt: nowISO(), placeholders: { data: formData, images: imagesMeta } };
     delete updatedData.folder;
-
     try {
-        const jsonStr = escapeForJSX(JSON.stringify(updatedData));
-        await evalScriptPromise(`$._ext.writeTextFile("${folder}/preset.json", '${jsonStr}')`);
+        await evalScriptPromise(`$._ext.writeTextFile("${folder}/preset.json", '${escapeForJSX(JSON.stringify(updatedData))}')`);
         entry.updatedAt = updatedData.updatedAt;
-        const idxStr = escapeForJSX(JSON.stringify(presetsIndex));
-        await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${idxStr}')`);
+        await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${escapeForJSX(JSON.stringify(presetsIndex))}')`);
         loadedPreset = { ...updatedData, folder };
         closeSaveConfirmModal();
-        
-        // REQUIREMENT: Professional Toast notifications for all functions
         showToast("Changes saved successfully!");
     } catch(e) { showToast("Save failed"); }
 }
 
-// --- DATA HANDLERS ---
 function getCurrentFormData() {
     const questions = [], answers = [], grids = [], frenzies = {};
     const checks = {
@@ -264,16 +188,12 @@ function getCurrentFormData() {
         is60s: document.getElementById('checkbox-60-sec-vid')?.checked || false,
         solveA3: document.getElementById('solve-a3')?.checked || false
     };
-
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         questions.push(document.getElementById(`question-textarea-${i}`)?.value || "");
         answers.push(document.getElementById(`answer-${i}`)?.value || "");
         grids.push(document.getElementById(`grid-num-${i}`)?.value || "");
-        
-        // Sync with global persistence cache
         const fInput = document.getElementById(`frenzies-${i}`);
         if (fInput) window.globalFrenzyCache[i] = fInput.value;
-        
         frenzies[i] = window.globalFrenzyCache[i] || "";
     }
     return { questions, answers, grids, frenzies, checks };
@@ -283,21 +203,18 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
     if (!data) return;
     questionImages = {}; 
 
-    // Restore Checkboxes
     const afChk = document.getElementById('checkbox-auto-frenzy');
     const vidChk = document.getElementById('checkbox-60-sec-vid');
     if(afChk) afChk.checked = !!data.checks?.autoFrenzy;
     if(vidChk) vidChk.checked = !!data.checks?.is60s;
     
-    // REQUIREMENT: Sync loaded frenzy data into the global persistence cache to prevent disappearance
+    // SYNC CACHE BEFORE RE-RENDERING UI
     if (data.frenzies) {
         window.globalFrenzyCache = { ...data.frenzies };
     }
     
-    // Refresh UI logic
     if(typeof updateContentMode === 'function') updateContentMode(true);
 
-    // Restore Solve A3 if it exists in the newly rendered UI
     const solveA3 = document.getElementById('solve-a3');
     if(solveA3) solveA3.checked = !!data.checks?.solveA3;
 
@@ -306,7 +223,7 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
         const aInput = document.getElementById(`answer-${i}`); if(aInput) aInput.value = data.answers[i-1] || "";
         const gInput = document.getElementById(`grid-num-${i}`); if(gInput) gInput.value = data.grids[i-1] || "";
         
-        // Populate frenzy inputs and ensure they match cache
+        // Populate inputs from the newly synced cache
         const fInput = document.getElementById(`frenzies-${i}`); 
         if(fInput) fInput.value = window.globalFrenzyCache[i] || "";
 
@@ -318,22 +235,12 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
             const fullLocalPath = `${baseDirPath}/${folder}/${imgMeta.relPath}`;
             const cleanPath = fullLocalPath.replace(/\\/g, '/');
             const fileUrl = "file://" + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
-            
-            if(preview) {
-                preview.src = fileUrl;
-                preview.classList.remove('hidden');
-            }
-            if(overlay) {
-                overlay.classList.add('bg-slate-900/50');
-                overlay.innerHTML = `<span class="text-[10px] text-green-400 truncate w-full px-1">${imgMeta.fileName}</span>`;
-            }
+            if(preview) { preview.src = fileUrl; preview.classList.remove('hidden'); }
+            if(overlay) { overlay.classList.add('bg-slate-900/50'); overlay.innerHTML = `<span class="text-[10px] text-green-400 truncate w-full px-1">${imgMeta.fileName}</span>`; }
             questionImages[i] = { name: imgMeta.fileName, path: fullLocalPath };
         } else {
             if(preview) { preview.src = ""; preview.classList.add('hidden'); }
-            if(overlay) {
-                overlay.classList.remove('bg-slate-900/50');
-                overlay.innerHTML = `<span class="text-xs font-semibold">Choose Image</span>`;
-            }
+            if(overlay) { overlay.classList.remove('bg-slate-900/50'); overlay.innerHTML = `<span class="text-xs font-semibold">Choose Image</span>`; }
         }
     }
 }
@@ -341,31 +248,24 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
 function handleImageSelection(event, index) {
     const file = event.target.files[0];
     if(!file) return;
-    
     questionImages[index] = { name: file.name, path: file.path };
     const preview = document.getElementById(`image-preview-${index}`);
     const overlay = document.getElementById(`image-overlay-${index}`);
-    
     const reader = new FileReader();
     reader.onload = (e) => {
         if(preview) { preview.src = e.target.result; preview.classList.remove('hidden'); }
-        if(overlay) {
-            overlay.classList.add('bg-slate-900/50');
-            overlay.innerHTML = `<span class="text-[10px] text-blue-400 truncate w-full px-1">Selected: ${file.name}</span>`;
-        }
+        if(overlay) { overlay.classList.add('bg-slate-900/50'); overlay.innerHTML = `<span class="text-[10px] text-blue-400 truncate w-full px-1">Selected: ${file.name}</span>`; }
     };
     reader.readAsDataURL(file);
     event.target.value = null; 
 }
 
-// --- DELETION HELPERS ---
 function requestDeletePreset(id, name) {
     const modal = document.getElementById('delete-confirm-modal');
     const title = document.getElementById('delete-modal-title');
     const msg = document.getElementById('delete-modal-message');
     if(title) title.textContent = "Delete Preset?";
     if(msg) msg.textContent = `Are you sure you want to delete '${name}'? This will delete the entire folder and its assets.`;
-    
     const confirmBtn = document.getElementById('delete-modal-confirm-btn');
     if(confirmBtn) confirmBtn.onclick = () => confirmDeletePreset(id);
     if(modal) modal.classList.remove('hidden');
@@ -374,7 +274,6 @@ function requestDeletePreset(id, name) {
 async function confirmDeletePreset(id) {
     const idx = presetsIndex.findIndex(p => p.id === id);
     if (idx === -1) return;
-    
     const entry = presetsIndex[idx];
     try {
         const res = await evalScriptPromise(`$._ext.deleteFolder("${entry.folder}")`);
@@ -384,8 +283,6 @@ async function confirmDeletePreset(id) {
             if (loadedPreset && loadedPreset.id === id) loadedPreset = null;
             closeDeleteModal();
             renderPresetDropdownItems();
-            
-            // REQUIREMENT: Professional Toast Notifications
             showToast("Preset deleted.");
         }
     } catch(e) { showToast("Delete failed"); }
@@ -393,16 +290,13 @@ async function confirmDeletePreset(id) {
 
 function closeDeleteModal() { document.getElementById('delete-confirm-modal').classList.add('hidden'); }
 
-// --- GRID MANAGEMENT ---
 async function loadGridsFromDisk() {
     try {
         if(!baseDirPath) return;
         const res = await evalScriptPromise("$._ext.getGridFiles()");
         availableGrids = (res && !res.startsWith("ERROR")) ? JSON.parse(res) : [];
     } catch(e) { availableGrids = []; }
-    
     if(typeof generateGridButtons === 'function') generateGridButtons();
-    
     if (availableGrids.length > 0) {
         if (!activeGrid || !availableGrids.find(g => g.id === activeGrid)) drawGrid(availableGrids[0].id);
         else drawGrid(activeGrid);
@@ -419,14 +313,12 @@ function drawGrid(gridId) {
         btn.classList.toggle('bg-blue-600', btn.id === `grid-btn-${gridId}`);
         btn.classList.toggle('bg-blue-500', btn.id !== `grid-btn-${gridId}`);
     });
-
     const gridContainer = document.getElementById('current-grid');
     const gridData = availableGrids.find(g => g.id === gridId);
     if (gridData && baseDirPath) {
         const root = baseDirPath.replace(/\\/g, '/');
         const cleanRoot = root.startsWith('/') ? root : '/' + root;
         const fullPath = `file://${cleanRoot}/DTC_Grids/${gridData.fileName}`;
-        
         if(gridContainer) {
             gridContainer.innerHTML = `
                 <div class="relative w-full h-full group flex justify-center items-center overflow-hidden rounded-lg">
@@ -445,7 +337,6 @@ async function requestDeleteGrid(id, fileName) {
     const msg = document.getElementById('delete-modal-message');
     if(title) title.textContent = "Delete Grid?";
     if(msg) msg.textContent = `Are you sure you want to delete Grid ${id}?`;
-    
     const confirmBtn = document.getElementById('delete-modal-confirm-btn');
     if(confirmBtn) {
         confirmBtn.onclick = async () => {
@@ -466,18 +357,11 @@ async function saveGridAndCreateNew() {
     const modal = document.getElementById('save-grid-modal');
     const saveBtn = modal ? modal.querySelector('button.bg-blue-600') : null;
     let originalText = "";
-    
-    if (saveBtn) { 
-        originalText = saveBtn.textContent; 
-        saveBtn.textContent = "Saving..."; 
-        saveBtn.disabled = true; 
-    }
-
+    if (saveBtn) { originalText = saveBtn.textContent; saveBtn.textContent = "Saving..."; saveBtn.disabled = true; }
     try {
         const resStr = await evalScriptPromise("$._ext.saveSnapshot()");
         const res = JSON.parse(resStr);
         if (res.status === 'success') {
-            // REQUIREMENT: 0.3s fake delay loading animation than reload image itself
             setTimeout(async () => {
                 if(typeof closeModal === 'function') closeModal();
                 await loadGridsFromDisk();
@@ -495,11 +379,8 @@ async function saveGridAndCreateNew() {
     }
 }
 
-// --- SETTINGS SAVE ---
 function saveSettings() {
     savedSettings.isCustomNamesEnabled = document.getElementById('toggle-edit-names').checked;
-    
-    // Frenzy settings
     savedSettings.f1a2 = document.getElementById('set-f1-a2')?.value;
     savedSettings.f2a3 = document.getElementById('set-f2-a3')?.value;
     savedSettings.f3a4 = document.getElementById('set-f3-a4')?.value;
@@ -507,22 +388,17 @@ function saveSettings() {
     savedSettings.f5a6 = document.getElementById('set-f5-a6')?.value;
     savedSettings.minGap = document.getElementById('set-min-gap')?.value;
     savedSettings.randSeed = document.getElementById('set-rand-seed')?.value;
-    
-    // Markers
     savedSettings.replaceImage = document.getElementById('set-chk-replace')?.checked;
     savedSettings.preserveMarker = document.getElementById('set-chk-preserve')?.checked;
-
     const fields = ['compMain', 'compQa', 'compGrid', 'compAnswers', 'layerCtrl', 'layerQ', 'layerA', 'layerTile', 'fxNum', 'fxRow', 'fxCol', 'fxRot', 'fxLetter'];
     fields.forEach(f => {
         const el = document.getElementById('set-' + f.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'));
         if (el) savedSettings[f] = el.value.trim() || DEFAULT_SETTINGS[f];
     });
-    
     if(typeof closeSettingsModal === 'function') closeSettingsModal();
     showToast("Settings saved.");
 }
 
-// --- AFTER EFFECTS APPLY ---
 function collectAndApplyContent() {
     const dataArray = [];
     const totalQuestions = is60SecVid ? MAX_QUESTIONS : 3;
@@ -535,7 +411,6 @@ function collectAndApplyContent() {
         dataArray.push({ block: g, question: q, answer: a });
     }
     if (!isValid) return showToast("Please fill all visible question fields.");
-    
     const jsxCommand = `applyBatchQA('${escapeForJSX(JSON.stringify(dataArray))}');`;
     csInterface.evalScript(jsxCommand);
     showToast("Applying content to AE...");
