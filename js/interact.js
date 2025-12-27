@@ -12,6 +12,9 @@ const panelStates = Array(MAX_QUESTIONS + 1).fill(false);
 let isAutoFrenzy = false;
 let is60SecVid = false;
 
+// Persistence cache to prevent text disappearing on toggle
+window.globalFrenzyCache = {}; 
+
 // --- Settings Default & Saved State ---
 const DEFAULT_SETTINGS = {
     isCustomNamesEnabled: false,
@@ -22,7 +25,7 @@ const DEFAULT_SETTINGS = {
     f5a6: "2",
     minGap: "2",
     randSeed: "12345",
-    replaceImage: true,
+    replaceImage: true, // REQUIREMENT: REPLACE_IMAGE ticked by default
     preserveMarker: false,
     compMain: "GRID",
     compQa: "REPLACE Q&A",
@@ -168,8 +171,14 @@ function generateQuestionPanel(index) {
 }
 
 function updatePanelVisibilityAndInputs() {
-    const totalQuestions = is60SecVid ? MAX_QUESTIONS : 3; // unchecked only 3 question panel visible
+    const totalQuestions = is60SecVid ? MAX_QUESTIONS : 3; 
     
+    // Sync current DOM values to global cache before manipulation
+    for (let i = 1; i <= MAX_QUESTIONS; i++) {
+        const input = document.getElementById(`frenzies-${i}`);
+        if (input) window.globalFrenzyCache[i] = input.value;
+    }
+
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         const wrapper = document.getElementById(`wrapper-${i}`);
         if (!wrapper) continue;
@@ -190,7 +199,6 @@ function updatePanelVisibilityAndInputs() {
         const middleSlot = document.getElementById(`middle-slot-container-${i}`);
         if (middleSlot) {
             if (!is60SecVid && i === 3) {
-                // Solve A3 Checkbox for last panel when 60s is off
                 middleSlot.innerHTML = `
                     <div class="flex items-center h-full pt-4">
                         <label class="custom-checkbox text-xs text-gray-400">
@@ -205,8 +213,11 @@ function updatePanelVisibilityAndInputs() {
                     <label for="frenzies-${i}" class="block text-[10px] font-medium mb-0.5 text-gray-500 uppercase">Frenzies</label>
                     <input type="text" id="frenzies-${i}" placeholder="Enter frenzies" class="frenzy-input w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500">
                 `;
+                
+                // RESTORE CACHED VALUE from window.globalFrenzyCache
                 const frenzyInput = document.getElementById(`frenzies-${i}`);
                 if (frenzyInput) {
+                    if (window.globalFrenzyCache[i] !== undefined) frenzyInput.value = window.globalFrenzyCache[i];
                     frenzyInput.disabled = isAutoFrenzy;
                     frenzyInput.style.opacity = isAutoFrenzy ? '0.5' : '1';
                 }
@@ -222,69 +233,6 @@ function toggleQuestion(panelId, index) {
     panel.classList.toggle('collapsed');
     if (typeof index !== 'undefined') {
         panelStates[index] = panel.classList.contains('collapsed');
-    }
-}
-
-// --- SETTINGS UI ---
-function openSettingsModal() {
-    const modal = document.getElementById('settings-modal');
-    if (!modal) return;
-    
-    document.getElementById('toggle-edit-names').checked = savedSettings.isCustomNamesEnabled;
-    
-    // Frenzy Settings
-    document.getElementById('set-f1-a2').value = savedSettings.f1a2;
-    document.getElementById('set-f2-a3').value = savedSettings.f2a3;
-    document.getElementById('set-f3-a4').value = savedSettings.f3a4;
-    document.getElementById('set-f4-a5').value = savedSettings.f4a5;
-    document.getElementById('set-f5-a6').value = savedSettings.f5a6;
-    document.getElementById('set-min-gap').value = savedSettings.minGap;
-    document.getElementById('set-rand-seed').value = savedSettings.randSeed;
-    
-    // Answer & Marker Settings
-    document.getElementById('set-chk-replace').checked = savedSettings.replaceImage;
-    document.getElementById('set-chk-preserve').checked = savedSettings.preserveMarker;
-
-    // Comp & Layer Names
-    const fields = [
-        ['set-comp-main', 'compMain'], ['set-comp-qa', 'compQa'], ['set-comp-grid', 'compGrid'], ['set-comp-answers', 'compAnswers'],
-        ['set-layer-ctrl', 'layerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile']
-    ];
-    fields.forEach(([elId, key]) => {
-        const el = document.getElementById(elId);
-        if (el) el.value = savedSettings[key];
-    });
-
-    toggleSettingsInputs();
-    modal.classList.remove('hidden');
-}
-
-function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
-
-function toggleSettingsInputs() {
-    const isChecked = document.getElementById('toggle-edit-names').checked;
-    document.querySelectorAll('.settings-input').forEach(input => { input.disabled = !isChecked; });
-    
-    if (!isChecked) {
-        // RESET to Default Values when unticked
-        document.getElementById('set-f1-a2').value = DEFAULT_SETTINGS.f1a2;
-        document.getElementById('set-f2-a3').value = DEFAULT_SETTINGS.f2a3;
-        document.getElementById('set-f3-a4').value = DEFAULT_SETTINGS.f3a4;
-        document.getElementById('set-f4-a5').value = DEFAULT_SETTINGS.f4a5;
-        document.getElementById('set-f5-a6').value = DEFAULT_SETTINGS.f5a6;
-        document.getElementById('set-min-gap').value = DEFAULT_SETTINGS.minGap;
-        document.getElementById('set-rand-seed').value = DEFAULT_SETTINGS.randSeed;
-        document.getElementById('set-chk-replace').checked = DEFAULT_SETTINGS.replaceImage;
-        document.getElementById('set-chk-preserve').checked = DEFAULT_SETTINGS.preserveMarker;
-
-        document.getElementById('set-comp-main').value = DEFAULT_SETTINGS.compMain;
-        document.getElementById('set-comp-qa').value = DEFAULT_SETTINGS.compQa;
-        document.getElementById('set-comp-grid').value = DEFAULT_SETTINGS.compGrid;
-        document.getElementById('set-comp-answers').value = DEFAULT_SETTINGS.compAnswers;
-        document.getElementById('set-layer-ctrl').value = DEFAULT_SETTINGS.layerCtrl;
-        document.getElementById('set-layer-q').value = DEFAULT_SETTINGS.layerQ;
-        document.getElementById('set-layer-a').value = DEFAULT_SETTINGS.layerA;
-        document.getElementById('set-layer-tile').value = DEFAULT_SETTINGS.layerTile;
     }
 }
 
@@ -342,3 +290,59 @@ function openNewPresetModal() {
 }
 
 function closeNewPresetModal() { document.getElementById('new-preset-modal').classList.add('hidden'); }
+
+function openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+    document.getElementById('toggle-edit-names').checked = savedSettings.isCustomNamesEnabled;
+    const fields = [
+        ['set-f1-a2', 'f1a2'], ['set-f2-a3', 'f2a3'], ['set-f3-a4', 'f3a4'], ['set-f4-a5', 'f4a5'], ['set-f5-a6', 'f5a6'],
+        ['set-min-gap', 'minGap'], ['set-rand-seed', 'randSeed'],
+        ['set-chk-replace', 'replaceImage'], ['set-chk-preserve', 'preserveMarker'],
+        ['set-comp-main', 'compMain'], ['set-comp-qa', 'compQa'], ['set-comp-grid', 'compGrid'], ['set-comp-answers', 'compAnswers'],
+        ['set-layer-ctrl', 'layerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile'],
+        ['set-fx-num', 'fxNum'], ['set-fx-row', 'fxRow'], ['set-fx-col', 'fxCol'], ['set-fx-rot', 'fxRot'], ['set-fx-letter', 'fxLetter']
+    ];
+    fields.forEach(([elId, key]) => {
+        const el = document.getElementById(elId);
+        if (el) {
+            if(el.type === 'checkbox') el.checked = savedSettings[key];
+            else el.value = savedSettings[key];
+        }
+    });
+    toggleSettingsInputs();
+    modal.classList.remove('hidden');
+}
+
+function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+function toggleSettingsInputs() {
+    const isChecked = document.getElementById('toggle-edit-names').checked;
+    document.querySelectorAll('.settings-input').forEach(input => { input.disabled = !isChecked; });
+    
+    if (!isChecked) {
+        document.getElementById('set-f1-a2').value = DEFAULT_SETTINGS.f1a2;
+        document.getElementById('set-f2-a3').value = DEFAULT_SETTINGS.f2a3;
+        document.getElementById('set-f3-a4').value = DEFAULT_SETTINGS.f3a4;
+        document.getElementById('set-f4-a5').value = DEFAULT_SETTINGS.f4a5;
+        document.getElementById('set-f5-a6').value = DEFAULT_SETTINGS.f5a6;
+        document.getElementById('set-min-gap').value = DEFAULT_SETTINGS.minGap;
+        document.getElementById('set-rand-seed').value = DEFAULT_SETTINGS.randSeed;
+        document.getElementById('set-chk-replace').checked = DEFAULT_SETTINGS.replaceImage;
+        document.getElementById('set-chk-preserve').checked = DEFAULT_SETTINGS.preserveMarker;
+
+        document.getElementById('set-comp-main').value = DEFAULT_SETTINGS.compMain;
+        document.getElementById('set-comp-qa').value = DEFAULT_SETTINGS.compQa;
+        document.getElementById('set-comp-grid').value = DEFAULT_SETTINGS.compGrid;
+        document.getElementById('set-comp-answers').value = DEFAULT_SETTINGS.compAnswers;
+        document.getElementById('set-layer-ctrl').value = DEFAULT_SETTINGS.layerCtrl;
+        document.getElementById('set-layer-q').value = DEFAULT_SETTINGS.layerQ;
+        document.getElementById('set-layer-a').value = DEFAULT_SETTINGS.layerA;
+        document.getElementById('set-layer-tile').value = DEFAULT_SETTINGS.layerTile;
+        document.getElementById('set-fx-num').value = DEFAULT_SETTINGS.fxNum;
+        document.getElementById('set-fx-row').value = DEFAULT_SETTINGS.fxRow;
+        document.getElementById('set-fx-col').value = DEFAULT_SETTINGS.fxCol;
+        document.getElementById('set-fx-rot').value = DEFAULT_SETTINGS.fxRot;
+        document.getElementById('set-fx-letter').value = DEFAULT_SETTINGS.fxLetter;
+    }
+}

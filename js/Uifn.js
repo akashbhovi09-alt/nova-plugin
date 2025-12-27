@@ -233,6 +233,11 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
     if(afChk) afChk.checked = !!data.checks?.autoFrenzy;
     if(vidChk) vidChk.checked = !!data.checks?.is60s;
     
+    // Sync loaded frenzy data into the global persistence cache
+    if (data.frenzies) {
+        window.globalFrenzyCache = { ...data.frenzies };
+    }
+    
     updateContentMode(true);
 
     const solveA3 = document.getElementById('solve-a3');
@@ -393,20 +398,47 @@ async function requestDeleteGrid(id, fileName) {
 }
 
 async function saveGridAndCreateNew() {
+    // REQUIREMENT: Visual cue on the button
+    const modal = document.getElementById('save-grid-modal');
+    const saveBtn = modal ? modal.querySelector('button.bg-blue-600') : null;
+    let originalText = "";
+    
+    if (saveBtn) {
+        originalText = saveBtn.textContent;
+        saveBtn.textContent = "Saving...";
+        saveBtn.disabled = true;
+    }
+
     try {
         const resStr = await evalScriptPromise("$._ext.saveSnapshot()");
         const res = JSON.parse(resStr);
         if (res.status === 'success') {
-            if(typeof closeModal === 'function') closeModal();
-            await loadGridsFromDisk();
-            drawGrid(res.id); 
-        } else alert("Error: " + res.message);
-    } catch(e) { alert("Operation Failed: " + e); }
+            // REQUIREMENT: 0.3s fake delay loading animation
+            setTimeout(async () => {
+                if(typeof closeModal === 'function') closeModal();
+                await loadGridsFromDisk();
+                drawGrid(res.id); 
+                
+                // Restore button for next time
+                if (saveBtn) {
+                    saveBtn.textContent = originalText;
+                    saveBtn.disabled = false;
+                }
+            }, 300);
+        } else {
+            alert("Error: " + res.message);
+            if (saveBtn) { saveBtn.textContent = originalText; saveBtn.disabled = false; }
+        }
+    } catch(e) { 
+        alert("Operation Failed: " + e); 
+        if (saveBtn) { saveBtn.textContent = originalText; saveBtn.disabled = false; }
+    }
 }
 
 function saveSettings() {
     savedSettings.isCustomNamesEnabled = document.getElementById('toggle-edit-names').checked;
     
+    // Frenzy settings
     savedSettings.f1a2 = document.getElementById('set-f1-a2')?.value;
     savedSettings.f2a3 = document.getElementById('set-f2-a3')?.value;
     savedSettings.f3a4 = document.getElementById('set-f3-a4')?.value;
@@ -415,6 +447,7 @@ function saveSettings() {
     savedSettings.minGap = document.getElementById('set-min-gap')?.value;
     savedSettings.randSeed = document.getElementById('set-rand-seed')?.value;
     
+    // Markers
     savedSettings.replaceImage = document.getElementById('set-chk-replace')?.checked;
     savedSettings.preserveMarker = document.getElementById('set-chk-preserve')?.checked;
 

@@ -90,11 +90,9 @@
             <!-- SETTINGS PAGE -->
             <div id="page-settings" class="tab-page hidden">
                 
-                <!-- Select Your GRID Header Section -->
                 <div class="card-bg p-4 rounded-t-xl flex justify-between items-center shadow-lg border-b border-slate-800/50">
                     <h3 class="text-lg font-bold text-gray-100">Select Your GRID :</h3>
                     <button onclick="openSettingsModal()" class="text-gray-300 hover:text-white transition transform hover:rotate-90 duration-300">
-                        <!-- Gear Icon -->
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="3"></circle>
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -102,7 +100,6 @@
                     </button>
                 </div>
 
-                <!-- Grid Buttons & Preview -->
                 <div class="card-bg p-4 rounded-b-xl shadow-2xl space-y-4">
                     <div id="grid-buttons" class="flex flex-wrap gap-2 mt-1">
                     </div>
@@ -116,7 +113,6 @@
                         </button>
                     </div>
 
-                    <!-- PREVIEW CONTAINER -->
                     <div id="crossword-container" class="bg-slate-900 p-2 rounded-xl border-2 border-blue-500 relative mt-4">
                         <div id="current-grid" class="mx-auto w-full max-w-sm aspect-square relative flex items-center justify-center overflow-hidden rounded-lg">
                         </div>
@@ -136,12 +132,10 @@
         </div>
     </div>
 
-    <!-- ================= MODALS ================= -->
-
     <!-- SETTINGS DETAIL POPUP -->
     <div id="settings-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-10 sm:p-20 z-50">
         
-        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50">
+        <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
             
             <div class="flex items-center space-x-2 p-6 border-b border-slate-700 flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -167,26 +161,31 @@
                 <!-- 1. FRENZY SETTINGS -->
                 <div class="space-y-4">
                     <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">FRENZY SETTINGS :</h3>
-                    <div class="flex items-center space-x-2">
-                        <div class="flex-1">
+                    
+                    <!-- NEW HEADING -->
+                    <h4 class="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1 pl-1">MATCH LETTER NUMBER FOR FRENZY</h4>
+                    
+                    <!-- Even distribution for 5 square textboxes -->
+                    <div class="flex justify-between items-center px-1">
+                        <div class="flex flex-col items-center">
                             <label class="block text-[10px] text-gray-500 mb-1">F1-A2</label>
-                            <input type="text" id="set-f1-a2" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                            <input type="text" id="set-f1-a2" disabled class="settings-input text-center text-sm rounded-md frenzy-input-small-sq">
                         </div>
-                        <div class="flex-1">
+                        <div class="flex flex-col items-center">
                             <label class="block text-[10px] text-gray-500 mb-1">F2-A3</label>
-                            <input type="text" id="set-f2-a3" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                            <input type="text" id="set-f2-a3" disabled class="settings-input text-center text-sm rounded-md frenzy-input-small-sq">
                         </div>
-                        <div class="flex-1">
+                        <div class="flex flex-col items-center">
                             <label class="block text-[10px] text-gray-500 mb-1">F3-A4</label>
-                            <input type="text" id="set-f3-a4" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                            <input type="text" id="set-f3-a4" disabled class="settings-input text-center text-sm rounded-md frenzy-input-small-sq">
                         </div>
-                        <div class="flex-1">
+                        <div class="flex flex-col items-center">
                             <label class="block text-[10px] text-gray-500 mb-1">F4-A5</label>
-                            <input type="text" id="set-f4-a5" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                            <input type="text" id="set-f4-a5" disabled class="settings-input text-center text-sm rounded-md frenzy-input-small-sq">
                         </div>
-                        <div class="flex-1">
+                        <div class="flex flex-col items-center">
                             <label class="block text-[10px] text-gray-500 mb-1">F5-A6</label>
-                            <input type="text" id="set-f5-a6" disabled class="settings-input w-full text-center text-sm rounded-md py-2 frenzy-input-sq">
+                            <input type="text" id="set-f5-a6" disabled class="settings-input text-center text-sm rounded-md frenzy-input-small-sq">
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4 mt-2">
@@ -208,7 +207,8 @@
                     <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">ANSWER & MARKER SETTINGS :</h3>
                     <div class="grid grid-cols-1 gap-3">
                         <label class="custom-checkbox text-sm text-gray-300">
-                            <input type="checkbox" id="set-chk-replace" disabled class="settings-input">
+                            <!-- REPLACE_IMAGE ticked by default -->
+                            <input type="checkbox" id="set-chk-replace" disabled checked class="settings-input">
                             <span class="box"></span>
                             REPLACE_IMAGE
                         </label>
@@ -266,6 +266,35 @@
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_TILE_SOURCE :</span>
                             <input type="text" id="set-layer-tile" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-700/50 my-2"></div>
+
+                <!-- EFFECT NAMES SECTION -->
+                <div class="space-y-3">
+                    <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">EFFECT NAMES :</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">PROP_TILE_NUM :</span>
+                            <input type="text" id="set-fx-num" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">EFFECT_ROW_SLIDER :</span>
+                            <input type="text" id="set-fx-row" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">EFFECT_COL_SLIDER :</span>
+                            <input type="text" id="set-fx-col" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">ANSWERS_ROTATION :</span>
+                            <input type="text" id="set-fx-rot" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">ANSWERS_LETTER_PREFIX :</span>
+                            <input type="text" id="set-fx-letter" disabled class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                     </div>
                 </div>

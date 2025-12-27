@@ -174,9 +174,11 @@ body {
     background-color: #1e293b;
 }
 
-/* Specific styling for Frenzy square inputs in settings */
-.frenzy-input-sq {
-    aspect-ratio: 1 / 1;
+/* Updated specific styling for Frenzy small square inputs in settings */
+.frenzy-input-small-sq {
+    width: 2.25rem; /* ~36px, matches standard input height */
+    height: 2.25rem;
+    padding: 0 !important; /* Center text visually */
     text-align: center;
 }
 
