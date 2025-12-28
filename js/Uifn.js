@@ -432,18 +432,87 @@ function saveSettings() {
 }
 
 function collectAndApplyContent() {
-    const dataArray = [];
-    const totalQuestions = is60SecVid ? MAX_QUESTIONS : 3;
-    let isValid = true;
-    for (let i = 1; i <= totalQuestions; i++) {
-        const q = document.getElementById(`question-textarea-${i}`)?.value.trim();
-        const a = document.getElementById(`answer-${i}`)?.value.trim();
-        const g = document.getElementById(`grid-num-${i}`)?.value.trim();
-        if (!q || !a || !g) { isValid = false; break; }
-        dataArray.push({ block: g, question: q, answer: a });
+    // Build CEP payload for Crossword AutoPlacer.
+    // NOTE: Empty fields are allowed; the JSX script preserves existing values when textboxes are empty.
+
+    const rows = [];
+    for (let i = 1; i <= MAX_QUESTIONS; i++) {
+        const q = document.getElementById(`question-textarea-${i}`)?.value ?? "";
+        const a = document.getElementById(`answer-${i}`)?.value ?? "";
+        const g = document.getElementById(`grid-num-${i}`)?.value ?? "";
+        const f = document.getElementById(`frenzies-${i}`)?.value ?? (window.globalFrenzyCache?.[i] ?? "");
+        const imgPath = questionImages?.[i]?.path ?? "";
+        rows.push({
+            grid: g,
+            question: q,
+            answer: a,
+            frenzy: f,
+            imagePath: imgPath
+        });
     }
-    if (!isValid) return showToast("Please fill all visible question fields.");
-    const jsxCommand = `applyBatchQA('${escapeForJSX(JSON.stringify(dataArray))}');`;
-    csInterface.evalScript(jsxCommand);
+
+    const matchCounts = [
+        savedSettings.f1a2, savedSettings.f2a3, savedSettings.f3a4,
+        savedSettings.f4a5, savedSettings.f5a6, "0"
+    ];
+    const afCounts = [
+        savedSettings.af1, savedSettings.af2, savedSettings.af3,
+        savedSettings.af4, savedSettings.af5, "0"
+    ];
+
+    // Ensure layer prefixes work with CrosswordAutoPlacer's "PREFIX + index" naming.
+    // If user enters "QUESTION" we normalize to "QUESTION " so layers like "QUESTION 1" resolve.
+    function normalizePrefix(p) {
+        const s = (p ?? '').toString();
+        if (!s) return s;
+        if (/[A-Za-z]$/.test(s)) return s + ' ';
+        return s;
+    }
+
+    const payload = {
+        rows,
+        settings: {
+            // Core run settings
+            minGap: savedSettings.minGap,
+            randSeed: savedSettings.randSeed,
+            replaceImage: !!savedSettings.replaceImage,
+            autoFrenzy: !!(document.getElementById("checkbox-auto-frenzy")?.checked),
+
+            // Frenzy mapping settings
+            matchCounts,
+            afCounts,
+
+            // Names (must map to JSX constants)
+            compMain: savedSettings.compMain,
+            compQa: savedSettings.compQa,
+            compGrid: savedSettings.compGrid,
+            compAnswers: savedSettings.compAnswers,
+
+            layerCtrl: savedSettings.layerCtrl,
+            layerQPrefix: normalizePrefix(savedSettings.layerQ),
+            layerAPrefix: normalizePrefix(savedSettings.layerA),
+            layerTile: savedSettings.layerTile,
+            layerParent: savedSettings.layerParent,
+
+            fxNum: savedSettings.fxNum,
+            fxRow: savedSettings.fxRow,
+            fxCol: savedSettings.fxCol,
+            fxRot: savedSettings.fxRot,
+            fxLetter: savedSettings.fxLetter
+        }
+    };
+
+    const cmd = `$._ext.CrosswordAutoPlacer_apply(\"${escapeForJSX(JSON.stringify(payload))}\")`;
+
+    csInterface.evalScript(cmd, (res) => {
+        if (res && String(res).indexOf("ERROR") === 0) {
+            showToast("AE Error: " + res);
+        } else {
+            showToast("Applied to AE.");
+        }
+    });
+
     showToast("Applying content to AE...");
 }
+
+

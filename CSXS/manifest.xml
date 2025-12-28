@@ -34,7 +34,7 @@
                     <!-- Your HTML entry -->
                     <MainPath>./index.html</MainPath>
                     <!-- Load the core JSX on host side so its functions exist immediately -->
-                    <ScriptPath>./jsx/FilePicker.jsx</ScriptPath>
+                    <ScriptPath>./jsx/main.jsx</ScriptPath>
                 </Resources>
 
                 <Lifecycle>

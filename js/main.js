@@ -25,8 +25,8 @@
           var extensionRoot = csi.getSystemPath(SystemPath.EXTENSION);
           
           // Assume the file is in a 'jsx' folder inside the extension
-          // Adjust this path if your file structure is different (e.g., just "/FilePicker.jsx")
-          var scriptPath = extensionRoot + "/jsx/FilePicker.jsx";
+          // Adjust this path if your file structure is different (e.g., just "/main.jsx")
+          var scriptPath = extensionRoot + "/jsx/main.jsx";
           
           // Normalize path for ExtendScript (forward slashes)
           var safePath = scriptPath.replace(/\\/g, "/");
@@ -39,7 +39,7 @@
               // If the first attempt fails (maybe it's in the root, not jsx folder), try root
               if (!result || result === "undefined" || result.toString().indexOf("Error") !== -1) {
                   console.warn("[Nova] Failed to load from /jsx/, trying root...");
-                  var rootPath = extensionRoot + "/FilePicker.jsx";
+                  var rootPath = extensionRoot + "/main.jsx";
                   var safeRoot = rootPath.replace(/\\/g, "/");
                   csi.evalScript('$.evalFile("' + safeRoot + '")', function(res2){
                       if(!res2 || res2.toString().indexOf("Error") !== -1) {

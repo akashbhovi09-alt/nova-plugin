@@ -30,8 +30,12 @@ const DEFAULT_SETTINGS = {
     compGrid: "Grid",
     compAnswers: "ANSWERS",
     layerCtrl: "Controller",
-    layerQ: "QUESTION",
-    layerA: "ANSWER",
+    // NOTE: CrosswordAutoPlacer.jsx builds the Q/A layer names as PREFIX + index.
+    // In the standalone script, the default prefixes include a trailing space
+    // (e.g., "QUESTION 1" and "ANSWER 1").
+    // Keep the same defaults here so Q/A updates work out of the box.
+    layerQ: "QUESTION ",
+    layerA: "ANSWER ",
     layerTile: "Tile",
     layerParent: "PARENT", // REQUIREMENT: Default text "PARENT"
     fxNum: "Num",

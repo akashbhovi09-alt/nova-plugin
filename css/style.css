@@ -1,0 +1,14 @@
+/* PSG / Nova - base, intentionally minimal */
+:root {
+  --psg-brand: #3B82F6;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Optional helper class you can use later if needed */
+.nova-hidden {
+  display: none !important;
+}
