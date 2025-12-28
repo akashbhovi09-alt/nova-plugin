@@ -3,12 +3,20 @@
  * Handling CSInterface, After Effects communication, and File System logic.
  */
 
+// =================================================================================
+// 1. INITIALIZATION & STATE
+// =================================================================================
 const csInterface = new CSInterface();
+
 let baseDirPath = null;
 let presetsIndex = [];
 let loadedPreset = null;
 let questionImages = {}; 
 let availableGrids = [];
+
+// =================================================================================
+// 2. JSX / STRING UTILITIES
+// =================================================================================
 
 function escapeForJSX(str) { 
     if (!str) return "";
@@ -23,6 +31,10 @@ function evalScriptPromise(script) {
         });
     });
 }
+
+// =================================================================================
+// 3. SYSTEM INITIALIZATION
+// =================================================================================
 
 window.onload = async () => {
     if(typeof renderQuestionPanels === 'function') renderQuestionPanels();
@@ -67,6 +79,10 @@ async function setBaseHandleAndInit(path) {
     await loadIndex();
     await loadGridsFromDisk();
 }
+
+// =================================================================================
+// 4. PRESET CORE ACTIONS
+// =================================================================================
 
 async function loadIndex() {
     try {
@@ -181,6 +197,10 @@ async function saveChangesToPreset() {
     } catch(e) { showToast("Save failed"); }
 }
 
+// =================================================================================
+// 5. DATA SYNC & LOADING
+// =================================================================================
+
 function getCurrentFormData() {
     const questions = [], answers = [], grids = [], frenzies = {};
     const checks = {
@@ -208,7 +228,6 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
     if(afChk) afChk.checked = !!data.checks?.autoFrenzy;
     if(vidChk) vidChk.checked = !!data.checks?.is60s;
     
-    // SYNC CACHE BEFORE RE-RENDERING UI
     if (data.frenzies) {
         window.globalFrenzyCache = { ...data.frenzies };
     }
@@ -223,7 +242,6 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
         const aInput = document.getElementById(`answer-${i}`); if(aInput) aInput.value = data.answers[i-1] || "";
         const gInput = document.getElementById(`grid-num-${i}`); if(gInput) gInput.value = data.grids[i-1] || "";
         
-        // Populate inputs from the newly synced cache
         const fInput = document.getElementById(`frenzies-${i}`); 
         if(fInput) fInput.value = window.globalFrenzyCache[i] || "";
 
@@ -259,6 +277,10 @@ function handleImageSelection(event, index) {
     reader.readAsDataURL(file);
     event.target.value = null; 
 }
+
+// =================================================================================
+// 6. DELETE & GRID BRIDGE ACTIONS
+// =================================================================================
 
 function requestDeletePreset(id, name) {
     const modal = document.getElementById('delete-confirm-modal');
@@ -379,6 +401,10 @@ async function saveGridAndCreateNew() {
     }
 }
 
+// =================================================================================
+// 7. SETTINGS & AE BRIDGE
+// =================================================================================
+
 function saveSettings() {
     savedSettings.isCustomNamesEnabled = document.getElementById('toggle-edit-names').checked;
     savedSettings.f1a2 = document.getElementById('set-f1-a2')?.value;
@@ -386,11 +412,17 @@ function saveSettings() {
     savedSettings.f3a4 = document.getElementById('set-f3-a4')?.value;
     savedSettings.f4a5 = document.getElementById('set-f4-a5')?.value;
     savedSettings.f5a6 = document.getElementById('set-f5-a6')?.value;
+    savedSettings.af1 = document.getElementById('set-af1')?.value;
+    savedSettings.af2 = document.getElementById('set-af2')?.value;
+    savedSettings.af3 = document.getElementById('set-af3')?.value;
+    savedSettings.af4 = document.getElementById('set-af4')?.value;
+    savedSettings.af5 = document.getElementById('set-af5')?.value;
     savedSettings.minGap = document.getElementById('set-min-gap')?.value;
     savedSettings.randSeed = document.getElementById('set-rand-seed')?.value;
     savedSettings.replaceImage = document.getElementById('set-chk-replace')?.checked;
     savedSettings.preserveMarker = document.getElementById('set-chk-preserve')?.checked;
-    const fields = ['compMain', 'compQa', 'compGrid', 'compAnswers', 'layerCtrl', 'layerQ', 'layerA', 'layerTile', 'fxNum', 'fxRow', 'fxCol', 'fxRot', 'fxLetter'];
+    // REQUIREMENT: Updated fields list to include layerParent
+    const fields = ['compMain', 'compQa', 'compGrid', 'compAnswers', 'layerCtrl', 'layerQ', 'layerA', 'layerTile', 'layerParent', 'fxNum', 'fxRow', 'fxCol', 'fxRot', 'fxLetter'];
     fields.forEach(f => {
         const el = document.getElementById('set-' + f.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'));
         if (el) savedSettings[f] = el.value.trim() || DEFAULT_SETTINGS[f];

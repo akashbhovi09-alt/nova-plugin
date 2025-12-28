@@ -3,19 +3,12 @@
  * Handling UI State, DOM Rendering, and Local Interactions.
  */
 
-// --- Global UI State ---
+// =================================================================================
+// 1. CONFIGURATION & GLOBAL STATE
+// =================================================================================
 const TABS = { LOTSO: 'lotso', CONTENTS: 'contents', SETTINGS: 'settings' };
 const MAX_QUESTIONS = 6;
-let activeTab = TABS.CONTENTS;
-let activeGrid = null;
-const panelStates = Array(MAX_QUESTIONS + 1).fill(false);
-let isAutoFrenzy = false;
-let is60SecVid = false;
 
-// Global persistence cache for frenzy values to survive re-renders
-window.globalFrenzyCache = {}; 
-
-// --- Settings Default & Saved State ---
 const DEFAULT_SETTINGS = {
     isCustomNamesEnabled: false,
     f1a2: "3",
@@ -40,6 +33,7 @@ const DEFAULT_SETTINGS = {
     layerQ: "QUESTION",
     layerA: "ANSWER",
     layerTile: "Tile",
+    layerParent: "PARENT", // REQUIREMENT: Default text "PARENT"
     fxNum: "Num",
     fxRow: "Row",
     fxCol: "Column",
@@ -47,10 +41,20 @@ const DEFAULT_SETTINGS = {
     fxLetter: "L"
 };
 
+let activeTab = TABS.CONTENTS;
+let activeGrid = null;
+let isAutoFrenzy = false;
+let is60SecVid = false;
 let savedSettings = { ...DEFAULT_SETTINGS };
 
-// --- PROFESSIONAL NOTIFICATION SYSTEM ---
-function showToast(msg, duration = 1000) {
+const panelStates = Array(MAX_QUESTIONS + 1).fill(false);
+window.globalFrenzyCache = {}; 
+
+// =================================================================================
+// 2. PROFESSIONAL NOTIFICATION SYSTEM
+// =================================================================================
+
+function showToast(msg, duration = 3000) {
     const toast = document.getElementById('toast-notification');
     const toastMsg = document.getElementById('toast-message');
     if (!toast || !toastMsg) return;
@@ -67,7 +71,10 @@ function showToast(msg, duration = 1000) {
     }, duration);
 }
 
-// --- GLOBAL FIXES ---
+// =================================================================================
+// 3. GLOBAL EVENT LISTENERS & FIXES
+// =================================================================================
+
 window.addEventListener('contextmenu', e => e.preventDefault());
 
 window.addEventListener('click', (e) => {
@@ -80,7 +87,10 @@ window.addEventListener('click', (e) => {
     }
 });
 
-// --- UI UTILS ---
+// =================================================================================
+// 4. UI UTILITIES
+// =================================================================================
+
 function slugify(s) { return (s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
 function newId() { return Math.floor(Date.now() + Math.random()*1e6).toString(36); }
 function nowISO() { return new Date().toISOString(); }
@@ -93,7 +103,10 @@ function toDisplayPath(path){
     return parts.length > 0 ? '/' + parts[parts.length - 1] : '/DTC_Presets'; 
 }
 
-// --- TAB LOGIC ---
+// =================================================================================
+// 5. TAB LOGIC
+// =================================================================================
+
 function setActiveTab(tabId) {
     activeTab = tabId;
     document.querySelectorAll('.tab-button').forEach(btn => {
@@ -110,7 +123,10 @@ function setActiveTab(tabId) {
     });
 }
 
-// --- CONTENT MODE & CHECKBOXES ---
+// =================================================================================
+// 6. CONTENT MODE & PANEL RENDERING
+// =================================================================================
+
 function updateContentMode(force) {
     const afCheckbox = document.getElementById('checkbox-auto-frenzy');
     const vidCheckbox = document.getElementById('checkbox-60-sec-vid');
@@ -126,7 +142,6 @@ function handleCheckboxChange(is60Sec) {
     updateContentMode(false); 
 }
 
-// --- PANEL RENDERING ---
 function renderQuestionPanels() {
     const container = document.getElementById('question-panels');
     if(!container) return;
@@ -250,6 +265,10 @@ function toggleQuestion(panelId, index) {
     }
 }
 
+// =================================================================================
+// 7. GRID & PRESET MANAGEMENT
+// =================================================================================
+
 function generateGridButtons() {
     const buttonsContainer = document.getElementById('grid-buttons');
     if (!buttonsContainer) return;
@@ -296,6 +315,10 @@ function openNewPresetModal() {
 
 function closeNewPresetModal() { document.getElementById('new-preset-modal').classList.add('hidden'); }
 
+// =================================================================================
+// 8. SETTINGS MODAL LOGIC
+// =================================================================================
+
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
@@ -306,7 +329,7 @@ function openSettingsModal() {
         ['set-min-gap', 'minGap'], ['set-rand-seed', 'randSeed'],
         ['set-chk-replace', 'replaceImage'], ['set-chk-preserve', 'preserveMarker'],
         ['set-comp-main', 'compMain'], ['set-comp-qa', 'compQa'], ['set-comp-grid', 'compGrid'], ['set-comp-answers', 'compAnswers'],
-        ['set-layer-ctrl', 'layerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile'],
+        ['set-layer-ctrl', 'layerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile'], ['set-layer-parent', 'layerParent'],
         ['set-fx-num', 'fxNum'], ['set-fx-row', 'fxRow'], ['set-fx-col', 'fxCol'], ['set-fx-rot', 'fxRot'], ['set-fx-letter', 'fxLetter']
     ];
     fields.forEach(([elId, key]) => {
@@ -348,6 +371,7 @@ function toggleSettingsInputs() {
         document.getElementById('set-layer-q').value = DEFAULT_SETTINGS.layerQ;
         document.getElementById('set-layer-a').value = DEFAULT_SETTINGS.layerA;
         document.getElementById('set-layer-tile').value = DEFAULT_SETTINGS.layerTile;
+        document.getElementById('set-layer-parent').value = DEFAULT_SETTINGS.layerParent;
         document.getElementById('set-fx-num').value = DEFAULT_SETTINGS.fxNum;
         document.getElementById('set-fx-row').value = DEFAULT_SETTINGS.fxRow;
         document.getElementById('set-fx-col').value = DEFAULT_SETTINGS.fxCol;
