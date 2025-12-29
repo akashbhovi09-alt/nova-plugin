@@ -458,29 +458,66 @@ async function loadActiveGridPreset() {
 // =================================================================================
 
 function saveSettings() {
-    savedSettings.isCustomNamesEnabled = document.getElementById('toggle-edit-names').checked;
-    savedSettings.f1a2 = document.getElementById('set-f1-a2')?.value;
-    savedSettings.f2a3 = document.getElementById('set-f2-a3')?.value;
-    savedSettings.f3a4 = document.getElementById('set-f3-a4')?.value;
-    savedSettings.f4a5 = document.getElementById('set-f4-a5')?.value;
-    savedSettings.f5a6 = document.getElementById('set-f5-a6')?.value;
-    savedSettings.af1 = document.getElementById('set-af1')?.value;
-    savedSettings.af2 = document.getElementById('set-af2')?.value;
-    savedSettings.af3 = document.getElementById('set-af3')?.value;
-    savedSettings.af4 = document.getElementById('set-af4')?.value;
-    savedSettings.af5 = document.getElementById('set-af5')?.value;
-    savedSettings.minGap = document.getElementById('set-min-gap')?.value;
-    savedSettings.randSeed = document.getElementById('set-rand-seed')?.value;
-    savedSettings.replaceImage = document.getElementById('set-chk-replace')?.checked;
-    savedSettings.preserveMarker = document.getElementById('set-chk-preserve')?.checked;
-    // REQUIREMENT: Updated fields list to include layerParent
-    const fields = ['compMain', 'compQa', 'compGrid', 'compAnswers', 'layerCtrl', 'layerQ', 'layerA', 'layerTile', 'layerParent', 'fxNum', 'fxRow', 'fxCol', 'fxRot', 'fxLetter'];
-    fields.forEach(f => {
-        const el = document.getElementById('set-' + f.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'));
-        if (el) savedSettings[f] = el.value.trim() || DEFAULT_SETTINGS[f];
+    // NOTE: Do NOT rely on computed IDs here.
+    // The HTML uses explicit kebab-case IDs (e.g. set-comp-main), so we map explicitly.
+
+    const getText = (id) => (document.getElementById(id)?.value ?? '').toString().trim();
+    const getChk = (id) => !!document.getElementById(id)?.checked;
+
+    // Frenzy settings
+    savedSettings.f1a2 = getText('set-f1-a2') || DEFAULT_SETTINGS.f1a2;
+    savedSettings.f2a3 = getText('set-f2-a3') || DEFAULT_SETTINGS.f2a3;
+    savedSettings.f3a4 = getText('set-f3-a4') || DEFAULT_SETTINGS.f3a4;
+    savedSettings.f4a5 = getText('set-f4-a5') || DEFAULT_SETTINGS.f4a5;
+    savedSettings.f5a6 = getText('set-f5-a6') || DEFAULT_SETTINGS.f5a6;
+    savedSettings.af1  = getText('set-af1')   || DEFAULT_SETTINGS.af1;
+    savedSettings.af2  = getText('set-af2')   || DEFAULT_SETTINGS.af2;
+    savedSettings.af3  = getText('set-af3')   || DEFAULT_SETTINGS.af3;
+    savedSettings.af4  = getText('set-af4')   || DEFAULT_SETTINGS.af4;
+    savedSettings.af5  = getText('set-af5')   || DEFAULT_SETTINGS.af5;
+    savedSettings.minGap   = getText('set-min-gap')   || DEFAULT_SETTINGS.minGap;
+    savedSettings.randSeed = getText('set-rand-seed') || DEFAULT_SETTINGS.randSeed;
+
+    // Answer & marker settings
+    savedSettings.replaceImage   = getChk('set-chk-replace');
+    savedSettings.preserveMarker = getChk('set-chk-preserve');
+
+    // Persist ALL remaining sections the same way as the first two sections.
+    const pairs = [
+        // Comp names
+        ['set-comp-main',   'compMain'],
+        ['set-comp-qa',     'compQa'],
+        ['set-comp-grid',   'compGrid'],
+        ['set-comp-answers','compAnswers'],
+
+        // Layer names
+        ['set-layer-ctrl',       'layerCtrl'],
+        ['set-layer-adv-ctrl',   'advLayerCtrl'],
+        ['set-layer-q',          'layerQ'],
+        ['set-layer-a',          'layerA'],
+        ['set-layer-tile',       'layerTile'],
+        ['set-layer-parent',     'layerParent'],
+
+        // Effect / property names
+        ['set-fx-num',     'fxNum'],
+        ['set-fx-row',     'fxRow'],
+        ['set-fx-col',     'fxCol'],
+        ['set-fx-rot',     'fxRot'],
+        ['set-fx-letter',  'fxLetter']
+    ];
+
+    pairs.forEach(([id, key]) => {
+        const v = getText(id);
+        savedSettings[key] = v || DEFAULT_SETTINGS[key];
     });
-    if(typeof closeSettingsModal === 'function') closeSettingsModal();
-    showToast("Settings saved.");
+
+    // Persist to localStorage so values survive refresh / reopen.
+    try {
+        localStorage.setItem('nova_savedSettings', JSON.stringify(savedSettings));
+    } catch (e) {}
+
+    if (typeof closeSettingsModal === 'function') closeSettingsModal();
+    showToast('Settings saved.');
 }
 
 function collectAndApplyContent() {
@@ -541,6 +578,7 @@ function collectAndApplyContent() {
             compAnswers: savedSettings.compAnswers,
 
             layerCtrl: savedSettings.layerCtrl,
+            advLayerCtrl: savedSettings.advLayerCtrl,
             layerQPrefix: normalizePrefix(savedSettings.layerQ),
             layerAPrefix: normalizePrefix(savedSettings.layerA),
             layerTile: savedSettings.layerTile,

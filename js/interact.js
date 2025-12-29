@@ -10,6 +10,7 @@ const TABS = { LOTSO: 'lotso', CONTENTS: 'contents', SETTINGS: 'settings' };
 const MAX_QUESTIONS = 6;
 
 const DEFAULT_SETTINGS = {
+    // (Legacy) kept for compatibility, but UI no longer uses a global "Edit Names" toggle.
     isCustomNamesEnabled: false,
     f1a2: "3",
     f2a3: "2",
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS = {
     compGrid: "Grid",
     compAnswers: "ANSWERS",
     layerCtrl: "Controller",
+    advLayerCtrl: "Advnc_Controller",
     // NOTE: CrosswordAutoPlacer.jsx builds the Q/A layer names as PREFIX + index.
     // In the standalone script, the default prefixes include a trailing space
     // (e.g., "QUESTION 1" and "ANSWER 1").
@@ -50,6 +52,19 @@ let activeGrid = null;
 let isAutoFrenzy = false;
 let is60SecVid = false;
 let savedSettings = { ...DEFAULT_SETTINGS };
+
+// Load persisted settings (if any). Merge with defaults so new keys get defaults.
+try {
+    const raw = localStorage.getItem('nova_savedSettings');
+    if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+            savedSettings = { ...DEFAULT_SETTINGS, ...parsed };
+        }
+    }
+} catch (e) {
+    // ignore
+}
 
 const panelStates = Array(MAX_QUESTIONS + 1).fill(false);
 window.globalFrenzyCache = {}; 
@@ -336,14 +351,13 @@ function closeNewPresetModal() { document.getElementById('new-preset-modal').cla
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
-    document.getElementById('toggle-edit-names').checked = savedSettings.isCustomNamesEnabled;
     const fields = [
         ['set-f1-a2', 'f1a2'], ['set-f2-a3', 'f2a3'], ['set-f3-a4', 'f3a4'], ['set-f4-a5', 'f4a5'], ['set-f5-a6', 'f5a6'],
         ['set-af1', 'af1'], ['set-af2', 'af2'], ['set-af3', 'af3'], ['set-af4', 'af4'], ['set-af5', 'af5'],
         ['set-min-gap', 'minGap'], ['set-rand-seed', 'randSeed'],
         ['set-chk-replace', 'replaceImage'], ['set-chk-preserve', 'preserveMarker'],
         ['set-comp-main', 'compMain'], ['set-comp-qa', 'compQa'], ['set-comp-grid', 'compGrid'], ['set-comp-answers', 'compAnswers'],
-        ['set-layer-ctrl', 'layerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile'], ['set-layer-parent', 'layerParent'],
+        ['set-layer-ctrl', 'layerCtrl'], ['set-layer-adv-ctrl', 'advLayerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile'], ['set-layer-parent', 'layerParent'],
         ['set-fx-num', 'fxNum'], ['set-fx-row', 'fxRow'], ['set-fx-col', 'fxCol'], ['set-fx-rot', 'fxRot'], ['set-fx-letter', 'fxLetter']
     ];
     fields.forEach(([elId, key]) => {
@@ -353,43 +367,67 @@ function openSettingsModal() {
             else el.value = savedSettings[key];
         }
     });
-    toggleSettingsInputs();
+    // Prevent background from scrolling while the modal is open.
+    document.body.classList.add('modal-open');
     modal.classList.remove('hidden');
 }
 
-function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+function closeSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.classList.add('hidden');
+    document.body.classList.remove('modal-open');
+}
 
-function toggleSettingsInputs() {
-    const isChecked = document.getElementById('toggle-edit-names').checked;
-    document.querySelectorAll('.settings-input').forEach(input => { input.disabled = !isChecked; });
-    if (!isChecked) {
-        document.getElementById('set-f1-a2').value = DEFAULT_SETTINGS.f1a2;
-        document.getElementById('set-f2-a3').value = DEFAULT_SETTINGS.f2a3;
-        document.getElementById('set-f3-a4').value = DEFAULT_SETTINGS.f3a4;
-        document.getElementById('set-f4-a5').value = DEFAULT_SETTINGS.f4a5;
-        document.getElementById('set-f5-a6').value = DEFAULT_SETTINGS.f5a6;
-        document.getElementById('set-af1').value = DEFAULT_SETTINGS.af1;
-        document.getElementById('set-af2').value = DEFAULT_SETTINGS.af2;
-        document.getElementById('set-af3').value = DEFAULT_SETTINGS.af3;
-        document.getElementById('set-af4').value = DEFAULT_SETTINGS.af4;
-        document.getElementById('set-af5').value = DEFAULT_SETTINGS.af5;
-        document.getElementById('set-min-gap').value = DEFAULT_SETTINGS.minGap;
-        document.getElementById('set-rand-seed').value = DEFAULT_SETTINGS.randSeed;
-        document.getElementById('set-chk-replace').checked = DEFAULT_SETTINGS.replaceImage;
-        document.getElementById('set-chk-preserve').checked = DEFAULT_SETTINGS.preserveMarker;
-        document.getElementById('set-comp-main').value = DEFAULT_SETTINGS.compMain;
-        document.getElementById('set-comp-qa').value = DEFAULT_SETTINGS.compQa;
-        document.getElementById('set-comp-grid').value = DEFAULT_SETTINGS.compGrid;
-        document.getElementById('set-comp-answers').value = DEFAULT_SETTINGS.compAnswers;
-        document.getElementById('set-layer-ctrl').value = DEFAULT_SETTINGS.layerCtrl;
-        document.getElementById('set-layer-q').value = DEFAULT_SETTINGS.layerQ;
-        document.getElementById('set-layer-a').value = DEFAULT_SETTINGS.layerA;
-        document.getElementById('set-layer-tile').value = DEFAULT_SETTINGS.layerTile;
-        document.getElementById('set-layer-parent').value = DEFAULT_SETTINGS.layerParent;
-        document.getElementById('set-fx-num').value = DEFAULT_SETTINGS.fxNum;
-        document.getElementById('set-fx-row').value = DEFAULT_SETTINGS.fxRow;
-        document.getElementById('set-fx-col').value = DEFAULT_SETTINGS.fxCol;
-        document.getElementById('set-fx-rot').value = DEFAULT_SETTINGS.fxRot;
-        document.getElementById('set-fx-letter').value = DEFAULT_SETTINGS.fxLetter;
+// Reset only one section (header reset icon).
+function resetSettingsSection(section) {
+    try {
+        const setText = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = (val ?? "").toString();
+        };
+        const setChk = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+
+        if (section === 'frenzy') {
+            setText('set-f1-a2', DEFAULT_SETTINGS.f1a2);
+            setText('set-f2-a3', DEFAULT_SETTINGS.f2a3);
+            setText('set-f3-a4', DEFAULT_SETTINGS.f3a4);
+            setText('set-f4-a5', DEFAULT_SETTINGS.f4a5);
+            setText('set-f5-a6', DEFAULT_SETTINGS.f5a6);
+            setText('set-af1', DEFAULT_SETTINGS.af1);
+            setText('set-af2', DEFAULT_SETTINGS.af2);
+            setText('set-af3', DEFAULT_SETTINGS.af3);
+            setText('set-af4', DEFAULT_SETTINGS.af4);
+            setText('set-af5', DEFAULT_SETTINGS.af5);
+            setText('set-min-gap', DEFAULT_SETTINGS.minGap);
+            setText('set-rand-seed', DEFAULT_SETTINGS.randSeed);
+        } else if (section === 'answer' || section === 'answerMarker') {
+            setChk('set-chk-replace', DEFAULT_SETTINGS.replaceImage);
+            setChk('set-chk-preserve', DEFAULT_SETTINGS.preserveMarker);
+        } else if (section === 'compNames') {
+            setText('set-comp-main', DEFAULT_SETTINGS.compMain);
+            setText('set-comp-qa', DEFAULT_SETTINGS.compQa);
+            setText('set-comp-grid', DEFAULT_SETTINGS.compGrid);
+            setText('set-comp-answers', DEFAULT_SETTINGS.compAnswers);
+        } else if (section === 'layerNames') {
+            setText('set-layer-ctrl', DEFAULT_SETTINGS.layerCtrl);
+            setText('set-layer-adv-ctrl', DEFAULT_SETTINGS.advLayerCtrl);
+            setText('set-layer-q', DEFAULT_SETTINGS.layerQ);
+            setText('set-layer-a', DEFAULT_SETTINGS.layerA);
+            setText('set-layer-tile', DEFAULT_SETTINGS.layerTile);
+            setText('set-layer-parent', DEFAULT_SETTINGS.layerParent);
+        } else if (section === 'effectNames') {
+            setText('set-fx-num', DEFAULT_SETTINGS.fxNum);
+            setText('set-fx-row', DEFAULT_SETTINGS.fxRow);
+            setText('set-fx-col', DEFAULT_SETTINGS.fxCol);
+            setText('set-fx-rot', DEFAULT_SETTINGS.fxRot);
+            setText('set-fx-letter', DEFAULT_SETTINGS.fxLetter);
+        }
+
+        if (typeof showToast === 'function') showToast('Reset to default.');
+    } catch (e) {
+        console.error(e);
     }
 }

@@ -96,6 +96,9 @@ var LAYER_TILE_SOURCE     = "Tile";     // Tile precomp name inside Grid
 // --- Grid Parent Layer (BY NAME) ---
 var LAYER_GRID_PARENT_NAME = "PARENT";  // Parent layer of tiles inside the Grid comp
 
+    // Baseline position of the Grid comp 'PARENT' layer when frenzy endpoints align correctly.
+    // We only apply the *delta* from this baseline to frenzy END points.
+    var GRID_PARENT_BASE_POS = [445.5, 782.5];
 // --- Essential Property & Effect Names ---
 var PROP_TILE_NUM                 = "Num";       // Effect name used for tile numbering
 var EFFECT_ROW_SLIDER             = "Row";       // Slider effect name on Controller layer
@@ -233,6 +236,31 @@ function defaultMatch_forRow(i0){
             return [v[0],v[1],0];
         }
     }
+
+    // Frenzy END point adjustment:
+    // Frenzy math historically aligned when the Grid comp's "PARENT" layer sat at GRID_PARENT_BASE_POS.
+    // To keep the existing frenzy logic intact (and avoid double-offsets), we apply ONLY the delta
+    // between the current PARENT position and the baseline to the END point.
+    function getGridParentPos(compGrid){
+        try{
+            var parentLay = compGrid.layer(LAYER_GRID_PARENT_NAME);
+            if(!parentLay) return null;
+            var t = compGrid.time;
+            var p = parentLay.transform.position.valueAtTime(t,false);
+            return [p[0], p[1]];
+        }catch(_){ return null; }
+    }
+    function getGridParentDelta(compGrid){
+        var p = getGridParentPos(compGrid);
+        if(!p) return [0,0];
+        return [p[0] - GRID_PARENT_BASE_POS[0], p[1] - GRID_PARENT_BASE_POS[1]];
+    }
+    function applyParentDeltaToGridPoint(ptGrid, compGrid){
+        // ptGrid is in Grid comp space [x,y,z?]. We add only delta (translation).
+        var d = getGridParentDelta(compGrid);
+        return [ptGrid[0] + d[0], ptGrid[1] + d[1], (ptGrid.length>2?ptGrid[2]:0)];
+    }
+
     function toCompPos(layer){
         var t=layer.containingComp.time;
         try{
@@ -485,6 +513,18 @@ function defaultMatch_forRow(i0){
         writeStartEnd(maskProp, vStart, vEnd);
     }
 
+    function getMaskEndLocal(maskProp){
+        try{
+            var path=maskProp.property('ADBE Mask Shape');
+            if(!path) return [0,0];
+            var s=path.value, e=ensureTwoVerts(s);
+            return [e.v[1][0], e.v[1][1]];
+        }catch(_){
+            return [0,0];
+        }
+    }
+
+
     function mapGridPointToGRID(ptGrid, compGrid, compMain){
         return [
             (ptGrid[0]-END_OFFSET[0])*(compMain.width/compGrid.width),
@@ -517,6 +557,22 @@ function defaultMatch_forRow(i0){
         }
         return null;
     }
+    function _findFootageByNameInFolder(folder, targetName){
+        if(!folder || !targetName) return null;
+        try{
+            var tName = String(targetName);
+            for(var i=1; i<=folder.numItems; i++){
+                var it = folder.item(i);
+                if(it instanceof FootageItem){
+                    try{
+                        if(String(it.name)===tName) return it;
+                    }catch(_){ }
+                }
+            }
+        }catch(_){ }
+        return null;
+    }
+
     function importImageFootage(fsPath){
         var f=new File(fsPath);
         if(!f.exists) return null;
@@ -541,8 +597,23 @@ function defaultMatch_forRow(i0){
             try{ clueFolder.parentFolder = rootFolder; }catch(_){}
         }
 
+        // BUGFIX: avoid duplicate footage items when re-applying content with overlapping images.
+        // If the CLUE IMAGE [new] folder already contains "same name + same extension",
+        // we REPLACE that existing FootageItem with the newly provided file.
+        var byName=_findFootageByNameInFolder(clueFolder, f.name);
+        if(byName){
+            try{ byName.replace(f); }catch(_){
+                try{ if(byName.mainSource) byName.mainSource.reload(); }catch(__){}
+            }
+            return byName;
+        }
+
+        // If exact file path is already imported anywhere, re-use it and move under CLUE IMAGE [new].
         var ex=_alreadyImportedFootageByFsName(f.fsName);
-        if(ex) return ex;
+        if(ex){
+            try{ ex.parentFolder = clueFolder; }catch(_){ }
+            return ex;
+        }
 
         var io=new ImportOptions(f);
         io.importAs=ImportAsType.FOOTAGE;
@@ -761,14 +832,19 @@ if(!isEmptyText(qUI)){
                     if(aLay) setTextToLayerIfChanged(aLay, finalRow[i].answer);
                 }
 
-                // Place answers (only if user typed answer/block)
+                // Place answers (ALWAYS re-evaluate on Apply All)
+                // USER REQUIREMENT: even if the textbox text did NOT change, if the grid shifts (e.g. 4A moved),
+                // Apply All must reposition Answers based on the current grid.
                 for(var i=0;i<NUM_ROWS_TO_PROCESS;i++){
-                    if(!(changedAnswer[i] || changedBlock[i])) continue;
+                    if(!rowMap[i] || !rowMap[i].answers) continue;
+                    if(!parseBlock(finalRow[i].block)) continue;
+                    if(isEmptyText(finalRow[i].answer)) continue;
                     var msg=placeAnswer_F1(finalRow[i].block, finalRow[i].answer, rowMap[i].answers);
                     log += '['+(i+1)+'] '+msg+' ';
                 }
 
                 // Build answers list
+
                 var answersText=[];
                 for(var i=0;i<NUM_ROWS_TO_PROCESS;i++) answersText.push(finalRow[i].answer);
 
@@ -862,7 +938,59 @@ if(!isEmptyText(qUI)){
                     }
                 }
 
-                // Decide which frenzy rows to regenerate:
+                
+                // USER REQUIREMENT: Apply All must ALSO re-evaluate Frenzy END points when the grid shifts,
+                // even if the user did not change any textbox. In manual mode, if a Frenzy slot already has
+                // a tile number (stored in Essential Properties), we reposition that mask END to the current
+                // tile position in the grid.
+                // NOTE: Auto-frenzy regeneration below will overwrite these ends anyway, so this is safe.
+                for(var fiU=0; fiU<NUM_ROWS_TO_PROCESS; fiU++){
+                    var FU=rowMap[fiU].frenzy;
+                    var AU=rowMap[fiU].answers;
+                    if(!FU || !AU) continue;
+
+                    var masksU=FU.property('ADBE Mask Parade');
+                    if(!masksU) continue;
+
+                    var adU=readOrientationFromAnswers(AU);
+                    var AposU=toCompPos(AU);
+                    var baseLocalU=fromGRIDCompToLayer(FU, [AposU[0]+START_OFF[0], AposU[1]+START_OFF[1]]);
+
+                    var epValsU=readFrenzyEPValues(FU);
+
+                    for(var miU=0; miU<MASK_NAMES.length; miU++){
+                        var mkU=masksU.property(MASK_NAMES[miU]);
+                        if(!mkU) continue;
+
+                        var dxU=(adU===ORIENT_ACROSS)? miU*ALIGN_STEP : 0;
+                        var dyU=(adU===ORIENT_DOWN)?   miU*ALIGN_STEP : 0;
+                        var startLocalU=[baseLocalU[0]+dxU, baseLocalU[1]+dyU];
+
+                        // Default: keep existing end
+                        var endLocalU=getMaskEndLocal(mkU);
+
+                        var nU=(epValsU && epValsU[miU]) ? (epValsU[miU].num||0) : 0;
+                        if(nU>0){
+                            // Find tile by number and recompute end.
+                            var tileLayerU=null;
+                            for(var liU=1; liU<=compGrid.numLayers; liU++){
+                                var Ltest=compGrid.layer(liU);
+                                var tnU=getTileNum_FromEffect(Ltest);
+                                if(tnU===nU){ tileLayerU=Ltest; break; }
+                            }
+                            if(tileLayerU){
+                                // USER REQUIREMENT: include PARENT X/Y movement like Answer placement.
+                                var ptGridU=applyParentDeltaToGridPoint(gridTileCompPos(tileLayerU), compGrid);
+                                var ptGRIDU=mapGridPointToGRID(ptGridU, compGrid, compMain);
+                                endLocalU=fromGRIDCompToLayer(FU, ptGRIDU);
+                            }
+                        }
+
+                        writeStartEnd(mkU, startLocalU, endLocalU);
+                    }
+                }
+
+// Decide which frenzy rows to regenerate:
                 //   Auto ON : regen rows 1..5
                 //   Auto OFF: regen only rows where user typed frenzy
                 var regenFrenzy=[];
@@ -1198,7 +1326,7 @@ if(!isEmptyText(qUI)){
                         var textVal='';
                         if(mi < chosen.length){
                             var tileObj=chosen[mi].tile;
-                            var ptGrid=gridTileCompPos(tileObj.L);
+                            var ptGrid=applyParentDeltaToGridPoint(gridTileCompPos(tileObj.L), compGrid);
                             var ptGRID=mapGridPointToGRID(ptGrid, compGrid, compMain);
                             endLocal=fromGRIDCompToLayer(F, ptGRID);
 
