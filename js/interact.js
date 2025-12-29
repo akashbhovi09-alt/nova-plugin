@@ -231,7 +231,7 @@ function updatePanelVisibilityAndInputs() {
                 middleSlot.innerHTML = `
                     <div class="flex items-center h-full pt-4">
                         <label class="custom-checkbox text-xs text-gray-400">
-                            <input type="checkbox" id="solve-a3">
+                            <input type="checkbox" id="solve-a3-checkbox">
                             <span class="box"></span>
                             Solve A3
                         </label>

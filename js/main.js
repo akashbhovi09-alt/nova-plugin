@@ -67,6 +67,14 @@
 document.addEventListener("DOMContentLoaded", function () {
     try {
         var cs = new CSInterface();
+
+        // Apply Content (EXECUTE) binding
+        var btnApply = document.getElementById("btn-apply-content");
+        if (btnApply && typeof collectAndApplyContent === "function") {
+            btnApply.addEventListener("click", function () {
+                collectAndApplyContent();
+            });
+        }
         var btn = document.getElementById("genGridNumBtn");
         if (!btn) return;
 

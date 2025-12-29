@@ -33,6 +33,34 @@ function evalScriptPromise(script) {
 }
 
 // =================================================================================
+// 2B. HOST SCRIPT LOADER (ROBUST)
+// =================================================================================
+// Some AE installs / cold starts may not have loaded jsx/main.jsx yet.
+// Before calling any $._ext function, we ensure the host entry is loaded.
+function ensureHostFunctions(requiredFnNames, cb) {
+    try {
+        var checks = (requiredFnNames || []).map(function (fn) {
+            return '($._ext && typeof $._ext.' + fn + ' === "function")';
+        }).join(' && ');
+        if (!checks) checks = '($._ext)';
+
+        csInterface.evalScript('(' + checks + ') ? "OK" : "MISSING"', function (res) {
+            if (String(res) === 'OK') return cb();
+
+            // Attempt to (re)load host entry then continue.
+            var extensionRoot = csInterface.getSystemPath(SystemPath.EXTENSION);
+            var safePath = (extensionRoot + '/jsx/main.jsx').replace(/\\/g, '/');
+            csInterface.evalScript('$.evalFile("' + safePath + '")', function () {
+                cb();
+            });
+        });
+    } catch (e) {
+        // Fail-open: still attempt callback so we don't block UI.
+        cb();
+    }
+}
+
+// =================================================================================
 // 3. SYSTEM INITIALIZATION
 // =================================================================================
 
@@ -206,7 +234,7 @@ function getCurrentFormData() {
     const checks = {
         autoFrenzy: document.getElementById('checkbox-auto-frenzy')?.checked || false,
         is60s: document.getElementById('checkbox-60-sec-vid')?.checked || false,
-        solveA3: document.getElementById('solve-a3')?.checked || false
+        solveA3: document.getElementById('solve-a3-checkbox')?.checked || false
     };
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
         questions.push(document.getElementById(`question-textarea-${i}`)?.value || "");
@@ -234,7 +262,7 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
     
     if(typeof updateContentMode === 'function') updateContentMode(true);
 
-    const solveA3 = document.getElementById('solve-a3');
+    const solveA3 = document.getElementById('solve-a3-checkbox');
     if(solveA3) solveA3.checked = !!data.checks?.solveA3;
 
     for (let i = 1; i <= MAX_QUESTIONS; i++) {
@@ -528,12 +556,42 @@ function collectAndApplyContent() {
 
     const cmd = `$._ext.CrosswordAutoPlacer_apply(\"${escapeForJSX(JSON.stringify(payload))}\")`;
 
-    csInterface.evalScript(cmd, (res) => {
-        if (res && String(res).indexOf("ERROR") === 0) {
-            showToast("AE Error: " + res);
-        } else {
-            showToast("Applied to AE.");
-        }
+    // Ensure host entry + CrosswordAutoPlacer hook is available, then apply.
+    ensureHostFunctions(["CrosswordAutoPlacer_apply"], function () {
+        csInterface.evalScript(cmd, (res) => {
+            if (res && String(res).indexOf("ERROR") === 0) {
+                showToast("AE Error: " + res);
+            } else {
+                showToast("Applied to AE.");
+
+                // Run AdjustMarkerKeypad based on UI checkboxes (Preserve / 60 sec / Solve A3)
+                try {
+                    const preserveEl = document.getElementById("set-chk-preserve");
+                    const is60El = document.getElementById("checkbox-60-sec-vid");
+                    const solveA3El = document.getElementById("solve-a3-checkbox");
+
+                    const preserve = preserveEl ? !!preserveEl.checked : true;
+                    const is60 = is60El ? !!is60El.checked : true;
+                    const solveA3 = (!is60 && solveA3El) ? !!solveA3El.checked : false;
+
+                    // Slight delay helps AE settle after content placement
+                    setTimeout(() => {
+                        ensureHostFunctions(["adjustMarkerKeypad"], function () {
+                            const cmd2 = `$._ext.adjustMarkerKeypad(${preserve}, ${is60}, ${solveA3})`;
+                            csInterface.evalScript(cmd2, (res2) => {
+                                if (res2 && res2.toString().indexOf("ERROR:") === 0) {
+                                    console.error("AdjustMarkerKeypad error:", res2);
+                                    showToast("Marker adjust error: " + res2, "error");
+                                }
+                            });
+                        });
+                    }, 50);
+                } catch (e) {
+                    console.error(e);
+                }
+
+            }
+        });
     });
 
     showToast("Applying content to AE...");

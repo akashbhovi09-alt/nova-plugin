@@ -8,10 +8,6 @@
     $._ext.__NOVA_CEP__ = true;
 
     var base = File($.fileName).parent.fsName;
-
-    // NOTE: Load order matters (json2 first for JSON.parse in older engines)
-    try { $.evalFile(base + "/json2.js"); } catch (e) {}
-
     // Existing Nova host utilities
     try { $.evalFile(base + "/FilePicker.jsx"); } catch (e) {}
 
@@ -24,6 +20,7 @@
     // Grid preset save/load (png + json)
     try { $.evalFile(base + "/GridPresetIO.jsx"); } catch (e) {}
 
+    try { $.evalFile(base + "/AdjustMarkerKeypad.jsx"); } catch (e) {}
     // Optional legacy modules (ignored per request)
     // try { $.evalFile(base + "/GridSave.jsx"); } catch (e) {}
     // try { $.evalFile(base + "/GridSnapshot.jsx"); } catch (e) {}
@@ -32,6 +29,13 @@
     $._ext.genGridNum = function () {
         GridGenAutomation_Run();
         return "OK";
+    };
+
+
+    // CEP-callable: adjust keypad markers (Preserve / 60 sec Video / Solve A3)
+    $._ext.adjustMarkerKeypad = function (preserve, is60, solveA3) {
+        if (typeof AdjustMarkerKeypad_run !== "function") { return "ERROR: AdjustMarkerKeypad_run not loaded."; }
+        return AdjustMarkerKeypad_run(preserve, is60, solveA3);
     };
 
 })();
