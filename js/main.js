@@ -62,3 +62,42 @@
   loadHostScript();
 
 })();
+
+/* === Gen GridNum Button Wiring === */
+document.addEventListener("DOMContentLoaded", function () {
+    try {
+        var cs = new CSInterface();
+        var btn = document.getElementById("genGridNumBtn");
+        if (!btn) return;
+
+        btn.addEventListener("click", function () {
+            // Ensure host entry is loaded (jsx/main.jsx) then call exposed function
+            cs.evalScript('$._ext && $._ext.genGridNum ? $._ext.genGridNum() : "ERR_NO_EXT"', function (res) {
+                if (res && res.toString().indexOf("ERR") === 0) {
+                    // Fallback: try loading host entry again, then re-run
+                    var extensionRoot = cs.getSystemPath(SystemPath.EXTENSION);
+                    var safePath = (extensionRoot + "/jsx/main.jsx").replace(/\\/g, "/");
+                    cs.evalScript('$.evalFile("' + safePath + '")', function () {
+                        cs.evalScript('$._ext && $._ext.genGridNum ? $._ext.genGridNum() : "ERR_NO_EXT_AFTER_LOAD"');
+                    });
+                }
+            });
+        });
+
+        // Save Grid modal buttons
+        var cancelSave = document.getElementById("cancelSaveGridBtn");
+        if (cancelSave) cancelSave.addEventListener("click", function () {
+            if (typeof closeModal === "function") closeModal();
+        });
+        var confirmSave = document.getElementById("confirmSaveGridBtn");
+        if (confirmSave) confirmSave.addEventListener("click", function () {
+            if (typeof saveGridAndCreateNew === "function") saveGridAndCreateNew();
+        });
+
+        // Load GRID button (apply selected preset to AE)
+        var loadGridBtn = document.getElementById("loadGridBtn");
+        if (loadGridBtn) loadGridBtn.addEventListener("click", function () {
+            if (typeof loadActiveGridPreset === "function") loadActiveGridPreset();
+        });
+    } catch (e) {}
+});

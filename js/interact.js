@@ -282,10 +282,20 @@ function generateGridButtons() {
         const id = grid.id;
         const isActive = (id === activeGrid);
         const colorClass = isActive ? 'bg-blue-600' : 'bg-blue-500';
-        buttonsHtml += `<button id="grid-btn-${id}" onclick="drawGrid(${id})" class="${colorClass} text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition">${id}</button>`;
+        buttonsHtml += `<button id="grid-btn-${id}" class="${colorClass} text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition">${id}</button>`;
     });
-    buttonsHtml += `<button onclick="openModal()" class="text-blue-500 font-bold py-2 px-4 text-xl rounded-lg hover:text-blue-400 transition">+</button>`;
+    // Add button for saving a new grid snapshot
+    buttonsHtml += `<button id="grid-btn-add" class="text-blue-500 font-bold py-2 px-4 text-xl rounded-lg hover:text-blue-400 transition">+</button>`;
     buttonsContainer.innerHTML = buttonsHtml;
+
+    // Bind events via addEventListener (no inline onclick)
+    grids.forEach(grid => {
+        const id = grid.id;
+        const btn = document.getElementById(`grid-btn-${id}`);
+        if (btn) btn.addEventListener('click', () => drawGrid(id));
+    });
+    const addBtn = document.getElementById('grid-btn-add');
+    if (addBtn) addBtn.addEventListener('click', openModal);
 }
 
 function openModal() { document.getElementById('save-grid-modal').classList.remove('hidden'); }

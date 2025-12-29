@@ -217,8 +217,23 @@ $._ext.deleteGridFile = function(fileName) {
     try {
         if (!$._ext.baseDirPath) return "ERROR:Path missing";
         var gridsFolder = new Folder($._ext.baseDirPath + "/DTC_Grids");
+        // Requirement: JSON presets live inside DTC_Grids/DTC_GridPresets
+        var presetsFolder = new Folder(gridsFolder.fsName + "/DTC_GridPresets");
+        if (!presetsFolder.exists) {
+            // Create if missing to keep structure consistent
+            try { presetsFolder.create(); } catch (e) {}
+        }
+
+        // Delete the PNG + matching JSON (if present)
+        var idMatch = (fileName || "").match(/^(\d+)\.png$/);
+        var deletedId = idMatch ? parseInt(idMatch[1], 10) : null;
         var fileToDelete = new File(gridsFolder.fsName + "/" + fileName);
         if (fileToDelete.exists) fileToDelete.remove();
+
+        if (deletedId !== null && !isNaN(deletedId)) {
+            var jsonToDelete = new File(presetsFolder.fsName + "/" + deletedId + ".json");
+            if (jsonToDelete.exists) jsonToDelete.remove();
+        }
 
         var files = gridsFolder.getFiles("*.png");
         files.sort(function(a, b) {
@@ -226,11 +241,26 @@ $._ext.deleteGridFile = function(fileName) {
             var nB = parseInt(b.name.match(/\d+/));
             return nA - nB;
         });
-        
+
+        // IMPORTANT: keep JSON presets in sync with PNG renumbering
+        // We use the sorted list as the canonical order and renumber both png + json.
         for (var k = 0; k < files.length; k++) {
-            var expectedName = (k + 1) + ".png";
+            var oldMatch = files[k].name.match(/^(\d+)\.png$/);
+            var oldId = oldMatch ? parseInt(oldMatch[1], 10) : null;
+            var newId = k + 1;
+            var expectedName = newId + ".png";
+
             if (files[k].name !== expectedName) {
+                // Rename PNG
                 files[k].rename(expectedName);
+            }
+
+            // Rename JSON if exists and id changed
+            if (oldId !== null && !isNaN(oldId) && oldId !== newId) {
+                var oldJson = new File(presetsFolder.fsName + "/" + oldId + ".json");
+                if (oldJson.exists) {
+                    try { oldJson.rename(newId + ".json"); } catch (e) {}
+                }
             }
         }
         return "SUCCESS";

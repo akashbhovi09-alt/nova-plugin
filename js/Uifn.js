@@ -345,10 +345,14 @@ function drawGrid(gridId) {
             gridContainer.innerHTML = `
                 <div class="relative w-full h-full group flex justify-center items-center overflow-hidden rounded-lg">
                     <img src="${fullPath}?t=${Date.now()}" alt="Grid ${gridId}" class="w-full h-full object-cover transform scale-[1.3]">
-                    <button onclick="requestDeleteGrid(${gridId}, '${gridData.fileName}')" class="hidden group-hover:block absolute top-[6px] right-[6px] bg-red-600 text-white rounded-full p-1.5 shadow-lg transition">
+                    <button id="delete-grid-btn-${gridId}" class="hidden group-hover:block absolute top-[6px] right-[6px] bg-red-600 text-white rounded-full p-1.5 shadow-lg transition" title="Delete Grid">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>`;
+
+            // Bind delete via addEventListener (no inline onclick)
+            const delBtn = document.getElementById(`delete-grid-btn-${gridId}`);
+            if (delBtn) delBtn.addEventListener('click', () => requestDeleteGrid(gridId, gridData.fileName));
         }
     }
 }
@@ -381,7 +385,7 @@ async function saveGridAndCreateNew() {
     let originalText = "";
     if (saveBtn) { originalText = saveBtn.textContent; saveBtn.textContent = "Saving..."; saveBtn.disabled = true; }
     try {
-        const resStr = await evalScriptPromise("$._ext.saveSnapshot()");
+        const resStr = await evalScriptPromise("$._ext.saveSnapshotAndPreset()");
         const res = JSON.parse(resStr);
         if (res.status === 'success') {
             setTimeout(async () => {
@@ -398,6 +402,26 @@ async function saveGridAndCreateNew() {
     } catch(e) { 
         showToast("Operation Failed"); 
         if (saveBtn) { saveBtn.textContent = originalText; saveBtn.disabled = false; }
+    }
+}
+
+// Load the currently selected grid preset (png id == json id)
+async function loadActiveGridPreset() {
+    try {
+        if (!baseDirPath) return showToast("Select Folder First");
+        if (!activeGrid) return showToast("No grid selected");
+        const res = await evalScriptPromise(`$._ext.loadGridPresetById(${activeGrid})`);
+        if (res === "SUCCESS") {
+            showToast(`Grid ${activeGrid} loaded in AE!`);
+            // Requirement: After loading preset, auto-run Gen GridNum with 0.05s delay
+            setTimeout(async () => {
+                try { await evalScriptPromise("$._ext.genGridNum()"); } catch (e) {}
+            }, 50);
+        } else {
+            showToast((res && res.toString()) || "Load failed");
+        }
+    } catch (e) {
+        showToast("Load failed");
     }
 }
 

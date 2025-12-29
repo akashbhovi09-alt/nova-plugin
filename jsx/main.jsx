@@ -18,8 +18,20 @@
     // Crossword AutoPlacer (CEP-adapted; preserves standalone ScriptUI behavior)
     try { $.evalFile(base + "/CrosswordAutoPlacer.jsx"); } catch (e) {}
 
+    // Grid numbering automation
+    try { $.evalFile(base + "/GridGenAutomation.jsx"); } catch (e) {}
+
+    // Grid preset save/load (png + json)
+    try { $.evalFile(base + "/GridPresetIO.jsx"); } catch (e) {}
+
     // Optional legacy modules (ignored per request)
     // try { $.evalFile(base + "/GridSave.jsx"); } catch (e) {}
     // try { $.evalFile(base + "/GridSnapshot.jsx"); } catch (e) {}
+
+    // CEP-callable: generate crossword numbers
+    $._ext.genGridNum = function () {
+        GridGenAutomation_Run();
+        return "OK";
+    };
 
 })();
