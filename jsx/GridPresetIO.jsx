@@ -31,6 +31,58 @@
         return arr;
     }
 
+    // Ensure Grid comp has exactly (row*column) Tile layers.
+    // IMPORTANT: duplication must preserve order, effects, expressions, parents.
+    // We duplicate existing Tile layers (layer.duplicate()) which preserves
+    // properties, expressions and parenting. We then move the duplicates so
+    // the Tile stack remains contiguous and ordered.
+    function syncTileCount(gridComp, requiredCount) {
+        if (!gridComp) return { ok: false, error: "Missing Grid comp" };
+        requiredCount = Math.max(0, Math.round(requiredCount || 0));
+
+        var tiles = getTileLayers(gridComp);
+        if (!tiles || tiles.length === 0) {
+            return { ok: false, error: "No Tile layers found inside Grid" };
+        }
+
+        // If too many, delete extras from the end (highest index tile layers).
+        if (tiles.length > requiredCount) {
+            for (var i = tiles.length - 1; i >= requiredCount; i--) {
+                try { tiles[i].remove(); } catch (e) {}
+            }
+        }
+
+        // Re-fetch after deletions.
+        tiles = getTileLayers(gridComp);
+
+        // If too few, duplicate last tile repeatedly.
+        if (tiles.length < requiredCount) {
+            var safety = 0;
+            while (tiles.length < requiredCount && safety < 5000) {
+                safety++;
+                var lastTile = tiles[tiles.length - 1];
+                if (!lastTile) break;
+
+                var dup = null;
+                try { dup = lastTile.duplicate(); } catch (e) { dup = null; }
+                if (!dup) break;
+
+                // Keep ordering: ensure the new duplicate sits after the current last tile.
+                try { dup.moveAfter(lastTile); } catch (e) {}
+
+                // Update list by re-fetching (indices change).
+                tiles = getTileLayers(gridComp);
+            }
+        }
+
+        // Final check
+        tiles = getTileLayers(gridComp);
+        if (!tiles || tiles.length !== requiredCount) {
+            return { ok: false, error: "Tile sync failed (have " + (tiles ? tiles.length : 0) + ", need " + requiredCount + ")" };
+        }
+        return { ok: true, count: tiles.length };
+    }
+
     function getLayerByName(comp, name) {
         try { return comp.layer(name); } catch (e) { return null; }
     }
@@ -44,6 +96,63 @@
             if (value === null || typeof value === "undefined") return;
             layer.effect(effectName)(1).setValue(value);
         } catch (e) {}
+    }
+
+    function toInt(v, fallback) {
+        var n = parseInt(v, 10);
+        return (isFinite(n) ? n : fallback);
+    }
+
+    function readRowColFromController(gridComp, controllerLayerName) {
+        var controller = getLayerByName(gridComp, controllerLayerName || "Controller");
+        if (!controller) return null;
+        var row = getEffectValue(controller, "Row");
+        var col = getEffectValue(controller, "Column");
+        row = toInt(row, null);
+        col = toInt(col, null);
+        if (row === null || col === null) return null;
+        if (row < 0) row = 0;
+        if (col < 0) col = 0;
+        return { row: row, col: col, count: row * col };
+    }
+
+    // Ensures Tile layer count matches requiredCount.
+    // Preserves: layer order (tiles remain contiguous), effects, expressions, parents.
+    // Strategy:
+    //  - If too many: remove extra tiles from the END.
+    //  - If too few : duplicate the LAST tile, then move the duplicate AFTER the current last tile.
+    function syncTileLayersToCount(gridComp, requiredCount) {
+        if (!gridComp) return { ok: false, error: "Missing grid comp" };
+        requiredCount = toInt(requiredCount, 0);
+        if (requiredCount < 0) requiredCount = 0;
+
+        var tiles = getTileLayers(gridComp);
+        if (!tiles || tiles.length === 0) return { ok: false, error: "No Tile layers found inside Grid" };
+
+        // Delete extra
+        if (tiles.length > requiredCount) {
+            for (var i = tiles.length - 1; i >= requiredCount; i--) {
+                try { tiles[i].remove(); } catch (e) {}
+            }
+        }
+
+        // Re-fetch after deletions
+        tiles = getTileLayers(gridComp);
+
+        // Duplicate missing
+        while (tiles.length < requiredCount) {
+            try {
+                var last = tiles[tiles.length - 1];
+                var dup = last.duplicate();
+                // AE duplicates above the original; move it after the current last tile to keep order.
+                try { dup.moveAfter(last); } catch (e2) {}
+            } catch (e) {
+                break;
+            }
+            tiles = getTileLayers(gridComp);
+        }
+
+        return { ok: (getTileLayers(gridComp).length === requiredCount), count: getTileLayers(gridComp).length };
     }
 
     function collectGridPresetData() {
@@ -98,16 +207,24 @@
         var grid = findCompByName("Grid");
         if (!grid) return "ERROR:Comp 'Grid' missing";
 
-        var tiles = getTileLayers(grid);
-        if (!tiles || tiles.length === 0) return "ERROR:No Tile layers found inside Grid";
-        if (!preset || !preset.tileCount || preset.tileCount !== tiles.length) return "ERROR:Tile count mismatch";
+        if (!preset) return "ERROR:Missing preset";
+
+        // Determine required tiles from preset row/column (preferred), else fallback to tileCount.
+        var req = 0;
+        try {
+            if (preset.controller) {
+                var pr = toInt(preset.controller.row, null);
+                var pc = toInt(preset.controller.column, null);
+                if (pr !== null && pc !== null) req = pr * pc;
+            }
+            if ((req <= 0) && (typeof preset.tileCount !== "undefined" && preset.tileCount !== null)) {
+                req = toInt(preset.tileCount, 0);
+            }
+        } catch (e) { req = 0; }
 
         app.beginUndoGroup("Load Grid Preset");
 
-        for (var i = 0; i < tiles.length; i++) {
-            try { tiles[i].enabled = !!preset.tileVisibility[i]; } catch (e) {}
-        }
-
+        // Apply controller first (so expressions depending on Row/Column settle), then sync tiles.
         var controller = getLayerByName(grid, "Controller");
         if (controller && preset.controller) {
             setEffectValue(controller, "X space", preset.controller.xSpace);
@@ -116,6 +233,28 @@
             setEffectValue(controller, "Column", preset.controller.column);
             setEffectValue(controller, "Block Scale", preset.controller.blockScale);
             setEffectValue(controller, "Block Roundness", preset.controller.blockRound);
+        }
+
+        // Sync tile count to Row*Column (or fallback).
+        if (req > 0) {
+            var syncRes = syncTileLayersToCount(grid, req);
+            if (!syncRes.ok) {
+                app.endUndoGroup();
+                return "ERROR:" + syncRes.error;
+            }
+        }
+
+        var tiles = getTileLayers(grid);
+        if (!tiles || tiles.length === 0) {
+            app.endUndoGroup();
+            return "ERROR:No Tile layers found inside Grid";
+        }
+
+        // Apply visibility safely (handle older presets)
+        var vis = preset.tileVisibility || [];
+        for (var i = 0; i < tiles.length; i++) {
+            var v = (i < vis.length) ? !!vis[i] : true;
+            try { tiles[i].enabled = v; } catch (e) {}
         }
 
         var adv = getLayerByName(grid, "Advnc_Controller");
@@ -144,6 +283,26 @@
             if (typeof $._ext.saveSnapshot !== "function") {
                 return JSON.stringify({ status: "error", message: "Missing saveSnapshot()" });
             }
+
+            // Before snapshotting, normalize Tile count to Row*Column (delete extras / duplicate missing)
+            var grid = findCompByName("Grid");
+            if (!grid) return JSON.stringify({ status: "error", message: "Comp 'Grid' missing" });
+
+            var controller = getLayerByName(grid, "Controller");
+            var rc = readRowColFromController(grid, "Controller");
+            var required = rc ? rc.count : 0;
+
+            if (required > 0) {
+                app.beginUndoGroup("Sync Tiles Before Save");
+                var syncRes = syncTileLayersToCount(grid, required);
+                app.endUndoGroup();
+                if (!syncRes.ok) {
+                    return JSON.stringify({ status: "error", message: syncRes.error });
+                }
+            }
+
+            // Let AE update after layer add/remove before snapshot
+            try { $.sleep(50); } catch (e) {}
 
             var snapStr = $._ext.saveSnapshot();
             var snap = {};

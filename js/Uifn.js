@@ -120,6 +120,16 @@ async function loadIndex() {
     renderPresetDropdownItems();
 }
 
+// Limit how much of a preset name we show in the CONTENTS tab trigger.
+// Requirement: max 18 characters (including spaces), then "...".
+function truncatePresetNameForUI(name, maxChars) {
+    var s = String(name || '');
+    var m = (typeof maxChars === 'number' && maxChars > 0) ? maxChars : 18;
+    if (s.length <= m) return s;
+    // Keep exactly m characters visible, then append ellipsis.
+    return s.substring(0, m) + '...';
+}
+
 function renderPresetDropdownItems() {
     const list = document.getElementById('preset-list');
     if(!list) return;
@@ -137,7 +147,13 @@ function renderPresetDropdownItems() {
     itemsHtml += `<div class="border-t border-slate-700 my-1"></div><button onclick="openNewPresetModal()" class="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-slate-700 rounded-lg">+ Create New Preset</button><button onclick="saveChangesConfirmation()" ${loadedPreset ? '' : 'disabled'} class="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-700 rounded-lg disabled:opacity-30">Save Changes</button>`;
     list.innerHTML = itemsHtml;
     const nameSpan = document.getElementById('selected-preset-name');
-    if(nameSpan) nameSpan.textContent = loadedPreset ? loadedPreset.name : '-- Select Preset --';
+    if (nameSpan) {
+        var fullName = loadedPreset ? (loadedPreset.name || '') : '-- Select Preset --';
+        nameSpan.textContent = truncatePresetNameForUI(fullName, 18);
+        // Keep full name accessible (hover) and for internal UI reads.
+        try { nameSpan.setAttribute('title', fullName); } catch(_) {}
+        try { nameSpan.setAttribute('data-fullname', fullName); } catch(_) {}
+    }
 }
 
 async function selectPreset(id) {
