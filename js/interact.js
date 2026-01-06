@@ -168,6 +168,243 @@ function renderQuestionPanels() {
     for(let i=1; i<=MAX_QUESTIONS; i++) {
         container.innerHTML += generateQuestionPanel(i);
     }
+    // EXTRA IMAGES PANEL (CC)
+    container.innerHTML += generateCCExtraImagesPanel();
+    // Bind CC events (in addition to inline onclick) to ensure CEP reliably opens file picker
+    try { if (typeof bindCCExtraEvents === 'function') bindCCExtraEvents(); } catch(e) {}
+    // Ensure CC UI renders correct initial state
+    try { if (typeof renderCCExtraImages === 'function') renderCCExtraImages(); } catch(e) {}
+}
+
+function generateCCExtraImagesPanel() {
+    const collapsedClass = panelStates[0] ? 'collapsed' : '';
+    return `
+    <div id="wrapper-cc-extra" class="question-panel-wrapper">
+        <div id="cc-extra-panel" class="question-panel card-bg p-1 rounded-xl shadow-2xl transition duration-300 w-full max-w-3xl min-panel-width ${collapsedClass}">
+            <input type="file" id="cc-extra-image-input" accept="image/*" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" multiple onchange="handleCCExtraImageSelection(event)">
+            <div class="flex items-center justify-between cursor-pointer" onclick="toggleQuestion('cc-extra-panel', 0)">
+                <div class="flex items-center space-x-3">
+                    <button class="toggle-icon text-gray-400 hover:text-white focus:outline-none p-0.5 rounded-full bg-slate-900">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <h2 class="text-sm font-semibold text-gray-100 uppercase tracking-wide">Select extra images for CC :</h2>
+                </div>
+                <div class="w-3 h-3 rounded-full border-2 border-gray-500 bg-transparent"></div>
+            </div>
+            <div class="content-area pt-1">
+                <div id="cc-extra-images-strip" class="cc-extra-strip flex flex-wrap items-center gap-2 p-2 rounded-lg bg-slate-900 border border-gray-700">
+                    <div id="cc-extra-images-list" class="flex flex-wrap items-center gap-2"></div>
+                    <button id="cc-extra-add-btn" class="cc-extra-add-btn flex items-center justify-center rounded-md border border-gray-600 hover:border-gray-400 hover:bg-slate-800 transition" onclick="openCCExtraImagePicker(event)" title="Add image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-200"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+}
+
+// =============================================================================================
+// CC EXTRA IMAGES (CONTENTS TAB)
+// - + button opens an image picker
+// - thumbnails show inside the panel
+// - each thumbnail has a small delete button
+// NOTE: Implemented as additive code only. No existing logic removed.
+// =============================================================================================
+
+// Keep a shared global array (used by preset save/load + payload build in Uifn.js)
+// If another file already defines it, we reuse it.
+try {
+    if (typeof window !== 'undefined') {
+        if (!window.ccExtraImages) window.ccExtraImages = [];
+    }
+} catch (e) {}
+
+// Local alias (kept in sync with window.ccExtraImages)
+var ccExtraImages = (typeof window !== 'undefined' && window.ccExtraImages) ? window.ccExtraImages : [];
+
+// Track removed preset asset relPaths so Save Changes can delete them from disk.
+// (Additive; does not change existing data model used elsewhere.)
+try {
+    if (typeof window !== 'undefined') {
+        if (!window.deletedPresetAssetRelPaths) window.deletedPresetAssetRelPaths = [];
+    }
+} catch (e) {}
+
+function bindCCExtraEvents() {
+    try {
+        const addBtn = document.getElementById('cc-extra-add-btn');
+        const input = document.getElementById('cc-extra-image-input');
+        // Keep a stable reference so the + button never "disappears" if the list is re-rendered.
+        // (When the button is appended inside the list, list.innerHTML='' would remove it from the DOM
+        // and subsequent getElementById() calls would return null.)
+        try { if (typeof window !== 'undefined' && addBtn) window._ccExtraAddBtnRef = addBtn; } catch (x) {}
+        if (addBtn) {
+            addBtn.onclick = function (ev) { openCCExtraImagePicker(ev); };
+        }
+        if (input) {
+            input.onchange = function (ev) { handleCCExtraImageSelection(ev); };
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function openCCExtraImagePicker(e) {
+    try {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        const input = document.getElementById('cc-extra-image-input');
+        if (input) input.click();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function handleCCExtraImageSelection(e) {
+    try {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        const input = e && e.target ? e.target : document.getElementById('cc-extra-image-input');
+        if (!input || !input.files || !input.files.length) {
+            // User cancelled: keep UI as-is.
+            return;
+        }
+
+        const files = Array.prototype.slice.call(input.files);
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            if (!f) continue;
+            // Create a preview URL; path is filled by preset save pipeline when needed.
+            const url = URL.createObjectURL(f);
+            const id = (typeof newId === 'function') ? newId() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+            // In CEP, File objects usually expose an absolute path via `path`.
+            // We store it (if present) so preset save/copy can work.
+            ccExtraImages.push({ id, name: f.name || ('image_' + id), file: f, path: f.path || "", relPath: "", dataUrl: "", fileUrl: url });
+        }
+
+        // Reset input so the same file can be picked again later
+        try { input.value = ""; } catch (x) {}
+
+        // Sync global
+        try { if (typeof window !== 'undefined') window.ccExtraImages = ccExtraImages; } catch (x) {}
+
+        renderCCExtraImages();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function removeCCExtraImage(id, e) {
+    try {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (!id) return;
+
+        // Confirm delete using the same modal used in SETTINGS grid deletes (more professional than browser confirm)
+        // Additive only.
+        if (typeof openDeleteConfirmModal === 'function') {
+            openDeleteConfirmModal(
+                'Delete Image?',
+                'Do you want to delete this image?',
+                function onConfirm(){
+                    const next = [];
+                    for (let i = 0; i < (ccExtraImages || []).length; i++) {
+                        const it = ccExtraImages[i];
+                        if (!it || it.id === id) {
+                            // Track asset file for deletion on Save Changes (if it came from preset assets)
+                            try {
+                                if (it && it.relPath) {
+                                    if (!window.deletedPresetAssetRelPaths) window.deletedPresetAssetRelPaths = [];
+                                    window.deletedPresetAssetRelPaths.push(it.relPath);
+                                }
+                            } catch(z) {}
+                            // Revoke object URL to avoid leaks
+                            try { if (it && it.fileUrl) URL.revokeObjectURL(it.fileUrl); } catch (x) {}
+                            continue;
+                        }
+                        next.push(it);
+                    }
+                    ccExtraImages = next;
+                    try { if (typeof window !== 'undefined') window.ccExtraImages = ccExtraImages; } catch (x) {}
+                    renderCCExtraImages();
+                    try { if (typeof showToast === 'function') showToast('Image deleted'); } catch(t) {}
+                }
+            );
+        } else {
+            // Fallback
+            try { if (!confirm('Delete this image?')) return; } catch(x) { return; }
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function renderCCExtraImages() {
+    try {
+        const list = document.getElementById('cc-extra-images-list');
+        if (!list) return;
+        // Preserve the + button if it lives inside the list.
+        // We detach it before clearing, then append it back as the last item.
+        let addBtn = document.getElementById('cc-extra-add-btn');
+        if (!addBtn) {
+            try { addBtn = (typeof window !== 'undefined' && window._ccExtraAddBtnRef) ? window._ccExtraAddBtnRef : null; } catch (x) {}
+        }
+        if (addBtn && addBtn.parentNode === list) {
+            try { list.removeChild(addBtn); } catch (x) {}
+        }
+        list.innerHTML = '';
+
+        const items = (typeof window !== 'undefined' && window.ccExtraImages) ? window.ccExtraImages : ccExtraImages;
+        ccExtraImages = items || [];
+
+        for (let i = 0; i < ccExtraImages.length; i++) {
+            const it = ccExtraImages[i];
+            if (!it) continue;
+            const src = it.fileUrl || it.dataUrl || (it.path ? (it.path.startsWith('file://') ? it.path : ('file://' + it.path)) : '');
+            if (!src) continue;
+            const wrap = document.createElement('div');
+            wrap.className = 'cc-thumb-wrap relative';
+            wrap.setAttribute('data-cc-id', it.id);
+
+            const inner = document.createElement('div');
+            inner.className = 'cc-thumb-inner';
+
+            const img = document.createElement('img');
+            img.className = 'cc-thumb-img';
+            img.src = src;
+            img.alt = it.name || 'CC image';
+
+            const name = document.createElement('div');
+            name.className = 'cc-thumb-name';
+            name.textContent = (it.name || '').toString();
+
+            const del = document.createElement('div');
+            del.className = 'cc-thumb-del';
+            del.title = 'Remove';
+            del.innerHTML = '&times;';
+            del.onclick = function(ev){ removeCCExtraImage(it.id, ev); };
+
+            inner.appendChild(img);
+            // Keep delete button INSIDE the rounded thumbnail box (so it never goes outside)
+            inner.appendChild(del);
+            wrap.appendChild(inner);
+            wrap.appendChild(name);
+            list.appendChild(wrap);
+        }
+
+        // Keep the + button as the LAST item in the same flex flow as thumbnails.
+        // This ensures it always sits to the right of the last image and wraps naturally
+        // when the row is full (instead of dropping awkwardly below).
+        try {
+            if (!addBtn) addBtn = document.getElementById('cc-extra-add-btn');
+            if (addBtn) {
+                // Ensure it's the LAST item so it sits to the right of the last thumbnail
+                // and wraps naturally to the next line when needed.
+                list.appendChild(addBtn);
+            }
+        } catch (x) {}
+    } catch (err) {
+        console.error(err);
+    }
 }
 
 function generateQuestionPanel(index) {
@@ -192,8 +429,9 @@ function generateQuestionPanel(index) {
                         <textarea id="question-textarea-${index}" rows="4" placeholder="Enter your question" class="w-full p-2 rounded-lg bg-slate-900 border border-gray-700 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-gray-500 resize-none"></textarea>
                     </div>
                     <div class="w-1/4 flex-shrink-0">
-                        <div id="image-box-${index}" class="relative aspect-square w-full rounded-lg border-2 border-gray-700 bg-slate-900 overflow-hidden group cursor-pointer" onclick="document.getElementById('image-file-input-${index}').click(); event.stopPropagation();">
+                        <div id="image-box-${index}" class="question-image-box relative aspect-square w-full rounded-lg border-2 border-gray-700 bg-slate-900 overflow-hidden group cursor-pointer" onclick="document.getElementById('image-file-input-${index}').click(); event.stopPropagation();">
                             <img id="image-preview-${index}" src="" alt="Selected image" class="absolute inset-0 w-full h-full object-cover hidden">
+                            <div id="image-del-${index}" class="q-thumb-del" title="Delete" onclick="deleteQuestionImage(${index}, event)">&times;</div>
                             <div id="image-overlay-${index}" class="absolute inset-0 flex flex-col items-center justify-center text-center p-2 z-10 bg-slate-900/70 text-gray-400 group-hover:bg-slate-900/90 transition duration-150">
                                 <span class="text-xs font-semibold">Choose Image</span>
                             </div>

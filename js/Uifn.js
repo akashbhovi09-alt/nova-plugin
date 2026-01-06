@@ -166,7 +166,7 @@ async function selectPreset(id) {
         if(!txt || txt.startsWith("ERROR:")) return showToast("Error reading preset");
         const json = JSON.parse(txt);
         loadedPreset = { ...json, folder: entry.folder }; 
-        loadDataIntoForm(json.placeholders?.data, json.placeholders?.images || [], entry.folder);
+        loadDataIntoForm(json.placeholders?.data, json.placeholders?.images || [], entry.folder, json.placeholders?.ccExtraImages || []);
         renderPresetDropdownItems();
     } catch(e) { showToast("Load failed"); }
 }
@@ -179,13 +179,24 @@ async function saveNewPreset() {
     const folder = `${id}_${slugify(name)}`;
     const formData = getCurrentFormData();
     const imagesMeta = [];
+    const ccExtraImagesMeta = [];
     for (const slot in questionImages) {
         const img = questionImages[slot];
         if (!img || !img.path) continue;
         const res = await evalScriptPromise(`$._ext.copyFile("${escapeForJSX(img.path)}", "${escapeForJSX(folder + '/assets/' + img.name)}")`);
         if (res === "SUCCESS") imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
     }
-    const presetData = { id, name, createdAt: nowISO(), updatedAt: nowISO(), placeholders: { data: formData, images: imagesMeta } };
+// Copy CC extra images into preset assets (KEEP ORIGINAL FILE NAME)
+for (let i = 0; i < (ccExtraImages || []).length; i++) {
+    const img = ccExtraImages[i];
+    if (!img || !img.path) continue;
+    // IMPORTANT: Do NOT rename CC images. Keep exactly the same name as selected.
+    const originalName = String(img.name || "").trim();
+    if (!originalName) continue;
+    const res = await evalScriptPromise(`$._ext.copyFile("${escapeForJSX(img.path)}", "${escapeForJSX(folder + '/assets/' + originalName)}")`);
+    if (res === "SUCCESS") ccExtraImagesMeta.push({ fileName: originalName, relPath: `assets/${originalName}` });
+}
+const presetData = { id, name, createdAt: nowISO(), updatedAt: nowISO(), placeholders: { data: formData, images: imagesMeta, ccExtraImages: ccExtraImagesMeta } };
     try {
         await evalScriptPromise(`$._ext.writeTextFile("${folder}/preset.json", '${escapeForJSX(JSON.stringify(presetData))}')`);
         presetsIndex.push({ id, name, folder, updatedAt: presetData.updatedAt });
@@ -215,8 +226,56 @@ async function saveChangesToPreset() {
     const entry = presetsIndex.find(p => p.id === loadedPreset.id);
     if (!entry) return;
     const folder = entry.folder;
+
+    // Build a reference map of currently-selected images in the UI.
+    // IMPORTANT: If the same image (same file name) is used multiple times across
+    // Questions and/or CC, deleting one instance must NOT delete the physical asset
+    // while another instance still references it.
+    // We store referenced items as relPaths like: assets/<originalName>
+    const _referencedRel = (function(){
+        const m = {};
+        try {
+            // Question panel references
+            for (const slot in (questionImages || {})) {
+                const it = questionImages[slot];
+                if (!it || !it.name) continue;
+                const rel = 'assets/' + String(it.name);
+                m[rel] = (m[rel] || 0) + 1;
+            }
+        } catch(e) {}
+        try {
+            // CC panel references
+            for (let i = 0; i < (ccExtraImages || []).length; i++) {
+                const it = ccExtraImages[i];
+                if (!it || !it.name) continue;
+                const rel = 'assets/' + String(it.name);
+                m[rel] = (m[rel] || 0) + 1;
+            }
+        } catch(e2) {}
+        return m;
+    })();
+
+    // Delete any removed preset assets from disk (scheduled by UI deletions)
+    try {
+        const dels = (typeof window !== 'undefined' && window.deletedPresetAssetRelPaths && Array.isArray(window.deletedPresetAssetRelPaths)) ? window.deletedPresetAssetRelPaths : [];
+        if (dels.length > 0) {
+            const _remainingDels = [];
+            for (let i = 0; i < dels.length; i++) {
+                const rel = dels[i];
+                if (!rel) continue;
+                // Guard: If still referenced elsewhere in UI, do NOT delete from disk.
+                try {
+                    if (_referencedRel && _referencedRel[String(rel)] > 0) { _remainingDels.push(rel); continue; }
+                } catch(g) {}
+                try { await evalScriptPromise(`$._ext.deleteFile("${escapeForJSX(folder + '/' + rel)}")`); } catch(x) {}
+            }
+            // Keep any still-referenced items queued for a future save after user removes the last reference.
+            window.deletedPresetAssetRelPaths = _remainingDels;
+        }
+    } catch(e) {}
     const formData = getCurrentFormData();
     let imagesMeta = [];
+    let ccExtraImagesMeta = [];
     for (const slot in questionImages) {
         const img = questionImages[slot];
         if (!img || !img.path) continue;
@@ -224,12 +283,56 @@ async function saveChangesToPreset() {
         const cleanSource = img.path.replace(/\\/g, '/');
         if (cleanSource !== fullDest) {
             const res = await evalScriptPromise(`$._ext.copyFile("${escapeForJSX(img.path)}", "${escapeForJSX(folder + '/assets/' + img.name)}")`);
-            if (res === "SUCCESS") imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
+            if (res === "SUCCESS") {
+                imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
+                // IMPORTANT: keep in-memory items updated so future deletions/replacements delete from disk.
+                // Do NOT rename files. Keep the exact original file name.
+                try { img.relPath = `assets/${img.name}`; img.fromPreset = true; img.assetFileName = img.name; img.path = fullDest; } catch (x) {}
+            }
         } else {
             imagesMeta.push({ slot: parseInt(slot), fileName: img.name, relPath: `assets/${img.name}` });
+            try { img.relPath = `assets/${img.name}`; img.fromPreset = true; img.assetFileName = img.name; img.path = fullDest; } catch (x) {}
         }
     }
-    const updatedData = { ...loadedPreset, updatedAt: nowISO(), placeholders: { data: formData, images: imagesMeta } };
+// Copy CC extra images into preset assets (KEEP ORIGINAL FILE NAME)
+for (let i = 0; i < (ccExtraImages || []).length; i++) {
+    const img = ccExtraImages[i];
+    if (!img || !img.path) continue;
+    const originalName = String(img.name || "").trim();
+    if (!originalName) continue;
+    const fullDest = `${baseDirPath}/${folder}/assets/${originalName}`.replace(/\\/g, '/');
+    const cleanSource = img.path.replace(/\\/g, '/');
+    const rel = `assets/${originalName}`;
+    if (cleanSource !== fullDest) {
+        const res = await evalScriptPromise(`$._ext.copyFile("${escapeForJSX(img.path)}", "${escapeForJSX(folder + '/assets/' + originalName)}")`);
+        if (res === "SUCCESS") {
+            ccExtraImagesMeta.push({ fileName: originalName, relPath: rel });
+            // Keep in-memory items updated so future deletions delete from disk
+            try { img.relPath = rel; img.fromPreset = true; img.assetFileName = originalName; img.path = fullDest; } catch (x) {}
+        }
+    } else {
+        ccExtraImagesMeta.push({ fileName: originalName, relPath: rel });
+        try { img.relPath = rel; img.fromPreset = true; img.assetFileName = originalName; img.path = fullDest; } catch (x) {}
+    }
+}
+
+    // --- Additive cleanup ---
+    // CC extra images now KEEP ORIGINAL NAMES (no CC_ prefix). We can still safely remove
+    // orphaned CC assets by comparing previously-saved ccExtraImages relPaths to the newly-saved list.
+    // We only delete files that were previously recorded in preset.json under placeholders.ccExtraImages.
+    try {
+        const oldList = (loadedPreset && loadedPreset.placeholders && Array.isArray(loadedPreset.placeholders.ccExtraImages)) ? loadedPreset.placeholders.ccExtraImages : [];
+        const oldRelPaths = oldList.map(m => m && m.relPath ? String(m.relPath) : '').filter(Boolean);
+        const newRelPaths = ccExtraImagesMeta.map(m => m && m.relPath ? String(m.relPath) : '').filter(Boolean);
+        for (let i = 0; i < oldRelPaths.length; i++) {
+            const rel = oldRelPaths[i];
+            if (!rel) continue;
+            if (newRelPaths.indexOf(rel) === -1) {
+                try { await evalScriptPromise(`$._ext.deleteFile("${escapeForJSX(folder + '/' + rel)}")`); } catch(x) {}
+            }
+        }
+    } catch (e) {}
+const updatedData = { ...loadedPreset, updatedAt: nowISO(), placeholders: { data: formData, images: imagesMeta, ccExtraImages: ccExtraImagesMeta } };
     delete updatedData.folder;
     try {
         await evalScriptPromise(`$._ext.writeTextFile("${folder}/preset.json", '${escapeForJSX(JSON.stringify(updatedData))}')`);
@@ -263,7 +366,7 @@ function getCurrentFormData() {
     return { questions, answers, grids, frenzies, checks };
 }
 
-async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
+async function loadDataIntoForm(data, imagePlaceholders = [], folder, ccExtraImagePlaceholders = []) {
     if (!data) return;
     questionImages = {}; 
 
@@ -291,6 +394,7 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
 
         const preview = document.getElementById(`image-preview-${i}`);
         const overlay = document.getElementById(`image-overlay-${i}`);
+        const box = document.getElementById(`image-box-${i}`);
         const imgMeta = imagePlaceholders.find(p => p.slot === i);
 
         if (imgMeta && baseDirPath) {
@@ -299,27 +403,136 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder) {
             const fileUrl = "file://" + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
             if(preview) { preview.src = fileUrl; preview.classList.remove('hidden'); }
             if(overlay) { overlay.classList.add('bg-slate-900/50'); overlay.innerHTML = `<span class="text-[10px] text-green-400 truncate w-full px-1">${imgMeta.fileName}</span>`; }
-            questionImages[i] = { name: imgMeta.fileName, path: fullLocalPath };
+            if(box) { box.classList.add('has-image'); }
+            questionImages[i] = { name: imgMeta.fileName, path: fullLocalPath, relPath: imgMeta.relPath, fromPreset: true };
         } else {
             if(preview) { preview.src = ""; preview.classList.add('hidden'); }
             if(overlay) { overlay.classList.remove('bg-slate-900/50'); overlay.innerHTML = `<span class="text-xs font-semibold">Choose Image</span>`; }
+            if(box) { box.classList.remove('has-image'); }
         }
     }
+
+// CC Extra images (UI) - restore previews if preset has them
+try {
+    ccExtraImages = [];
+    const ccList = Array.isArray(ccExtraImagePlaceholders) ? ccExtraImagePlaceholders : [];
+    if (ccList.length > 0 && baseDirPath && folder) {
+        ccList.forEach((m) => {
+            if (!m) return;
+            const fullLocalPath = `${baseDirPath}/${folder}/${m.relPath}`.replace(/\\/g, '/');
+            const cleanPath = fullLocalPath.replace(/\\/g, '/');
+            const fileUrl = "file://" + (cleanPath.startsWith('/') ? '' : '/') + cleanPath;
+            ccExtraImages.push({ id: newId ? newId() : (Date.now().toString(36)+Math.random().toString(36).slice(2)), name: m.fileName, path: fullLocalPath, relPath: m.relPath, fromPreset: true, dataUrl: "", fileUrl: fileUrl });
+        });
+    }
+    if (typeof renderCCExtraImages === 'function') renderCCExtraImages();
+} catch(e) {}
+
 }
 
 function handleImageSelection(event, index) {
     const file = event.target.files[0];
     if(!file) return;
-    questionImages[index] = { name: file.name, path: file.path };
+
+    // REPLACE BEHAVIOR:
+    // If a question slot already had an image saved in the preset assets, and the user selects
+    // another image (i.e., replacing), we must delete the old asset file on next "Save Changes".
+    // IMPORTANT: since we keep original file names, do NOT schedule deletion if the old relPath
+    // would be identical to the newly-selected file's relPath (same name), or we'd delete the new one.
+    try {
+        const existing = questionImages ? questionImages[index] : null;
+        const newRel = `assets/${file.name}`;
+        if (existing && existing.relPath && existing.relPath !== newRel) {
+            if (!window.deletedPresetAssetRelPaths) window.deletedPresetAssetRelPaths = [];
+            window.deletedPresetAssetRelPaths.push(existing.relPath);
+        }
+    } catch(e) {}
+    // Clear any pending deletion entries for the same destination name
+    try {
+        if (window.deletedPresetAssetRelPaths && Array.isArray(window.deletedPresetAssetRelPaths)) {
+            const rel = `assets/${file.name}`;
+            window.deletedPresetAssetRelPaths = window.deletedPresetAssetRelPaths.filter(p => p !== rel);
+        }
+    } catch(e) {}
+    questionImages[index] = { name: file.name, path: file.path, relPath: '', fromPreset: false };
     const preview = document.getElementById(`image-preview-${index}`);
     const overlay = document.getElementById(`image-overlay-${index}`);
+    const box = document.getElementById(`image-box-${index}`);
     const reader = new FileReader();
     reader.onload = (e) => {
         if(preview) { preview.src = e.target.result; preview.classList.remove('hidden'); }
-        if(overlay) { overlay.classList.add('bg-slate-900/50'); overlay.innerHTML = `<span class="text-[10px] text-blue-400 truncate w-full px-1">Selected: ${file.name}</span>`; }
+        if(overlay) { overlay.classList.add('bg-slate-900/50'); overlay.innerHTML = `<span class="text-[10px] text-blue-400 truncate w-full px-1">${file.name}</span>`; }
+        if(box) { box.classList.add('has-image'); }
     };
     reader.readAsDataURL(file);
     event.target.value = null; 
+}
+
+// Delete question thumbnail (UI) + schedule asset file removal on Save Changes
+// Additive only.
+function deleteQuestionImage(index, ev) {
+    try {
+        if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+        const existing = questionImages ? questionImages[index] : null;
+        if (!existing) return;
+
+        // Use the same in-panel confirmation modal used for grid deletes (more professional than AE confirm)
+        // Additive only.
+        openDeleteConfirmModal(
+            'Delete Image?',
+            'Do you want to delete this image?',
+            function onConfirm(){
+                try {
+                    // Track preset asset for deletion if it came from preset assets
+                    try {
+                        if (existing && existing.relPath) {
+                            if (!window.deletedPresetAssetRelPaths) window.deletedPresetAssetRelPaths = [];
+                            window.deletedPresetAssetRelPaths.push(existing.relPath);
+                        }
+                    } catch(e) {}
+
+                    // Clear UI + state
+                    try { delete questionImages[index]; } catch(e) { questionImages[index] = null; }
+                    const preview = document.getElementById(`image-preview-${index}`);
+                    const overlay = document.getElementById(`image-overlay-${index}`);
+                    const box = document.getElementById(`image-box-${index}`);
+                    if (preview) { preview.src = ""; preview.classList.add('hidden'); }
+                    if (overlay) { overlay.classList.remove('bg-slate-900/50'); overlay.innerHTML = `<span class="text-xs font-semibold">Choose Image</span>`; }
+                    if (box) { box.classList.remove('has-image'); }
+                    showToast('Image deleted');
+                } catch(err2) {
+                    try { showToast('Delete failed'); } catch(x) {}
+                }
+            }
+        );
+    } catch (err) {
+        try { showToast('Delete failed'); } catch(x) {}
+    }
+}
+
+// Reusable confirmation modal helper (same modal used for preset/grid delete)
+// Additive only.
+function openDeleteConfirmModal(title, message, onConfirm) {
+    try {
+        const modal = document.getElementById('delete-confirm-modal');
+        const t = document.getElementById('delete-modal-title');
+        const msg = document.getElementById('delete-modal-message');
+        const confirmBtn = document.getElementById('delete-modal-confirm-btn');
+        if (!modal || !confirmBtn) {
+            // Fallback (should not happen)
+            try { if (confirm(message || 'Delete?')) { if (typeof onConfirm === 'function') onConfirm(); } } catch(x) {}
+            return;
+        }
+        if (t) t.textContent = title || 'Delete?';
+        if (msg) msg.textContent = message || '';
+        confirmBtn.onclick = function(){
+            try { closeDeleteModal(); } catch(e) { try { modal.classList.add('hidden'); } catch(x) {} }
+            try { if (typeof onConfirm === 'function') onConfirm(); } catch(e2) {}
+        };
+        modal.classList.remove('hidden');
+    } catch (e) {
+        try { if (confirm(message || 'Delete?')) { if (typeof onConfirm === 'function') onConfirm(); } } catch(x) {}
+    }
 }
 
 // =================================================================================
@@ -576,6 +789,7 @@ function collectAndApplyContent() {
 
     const payload = {
         rows,
+        ccExtraImages: (ccExtraImages || []).map(it => it && it.path ? it.path : '').filter(Boolean),
         settings: {
             // Core run settings
             minGap: savedSettings.minGap,

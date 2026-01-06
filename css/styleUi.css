@@ -247,3 +247,191 @@ button:focus-visible {
 #preset-list .group:hover .group-hover\:block {
     display: block !important;
 }
+
+/* CC extra images panel tint */
+.cc-card-bg {
+    background-color: #2b1f45; /* slightly different from card-bg */
+}
+.cc-extra-strip {
+    min-height: 78px;
+    /* Responsive wrap: images flow to next line, + follows at the end */
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    overflow: visible;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    padding-left: 12px !important;  /* safe-zone */
+    padding-right: 12px !important; /* safe-zone */
+}
+
+/* Ensure inner list also wraps even if tailwind flex-nowrap exists */
+#cc-extra-images-list {
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+}
+.cc-extra-add-btn {
+    width: 64px;
+    height: 64px;
+    flex: 0 0 auto;
+}
+.cc-thumb-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    overflow: visible; /* allow delete button to show fully */
+    border: 2px solid rgba(148,163,184,0.35); /* slate-ish */
+    background: transparent;
+    position: relative;
+    opacity: 0.72;
+    transition: opacity 120ms ease;
+}
+.cc-thumb-wrap:hover {
+    opacity: 1;
+}
+.cc-thumb-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0f172a;
+    position: relative; /* allow delete button to be positioned inside */
+}
+.cc-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.cc-thumb-name {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    line-height: 1.1;
+    font-weight: 600;
+    text-align: center;
+    padding: 2px 6px;
+    margin: 0 4px;
+    border-radius: 8px;
+    color: rgba(226,232,240,0.95);
+    background: rgba(15,23,42,0.58);
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+.cc-thumb-wrap:hover .cc-thumb-name {
+    opacity: 0;
+    visibility: hidden;
+}
+.cc-thumb-del {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    left: auto;
+    transform: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px; /* small square inside rounded box */
+    background: rgba(239,68,68,0.92);
+    border: 1px solid rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.98);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 5;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms ease;
+}
+.cc-thumb-wrap:hover .cc-thumb-del {
+    opacity: 1;
+    visibility: visible;
+}
+.cc-thumb-del:hover {
+    background: rgba(239,68,68,1);
+    border-color: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,1);
+}
+
+/* Hide scrollbars but keep scrolling (trackpad/mouse) */
+.hide-scrollbar {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge legacy */
+}
+.hide-scrollbar::-webkit-scrollbar {
+    width: 0px;
+    height: 0px;
+}
+
+/* Apply to whole extension to remove white scrollbar lines */
+html, body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+html::-webkit-scrollbar, body::-webkit-scrollbar {
+    width: 0px;
+    height: 0px;
+}
+
+/* Question panel thumbnail behavior:
+   - Normal (same as original): image remains visible.
+   - Hover: filename text disappears (overlay background stays), centered delete icon appears.
+*/
+.question-image-box.has-image img {
+    opacity: 1;
+    transition: opacity 140ms ease;
+}
+/* Keep overlay itself visible; only hide its text on hover */
+.question-image-box.has-image:hover [id^="image-overlay-"] span {
+    opacity: 0;
+    visibility: hidden;
+}
+.q-thumb-del {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    left: auto;
+    transform: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: rgba(239,68,68,0.92);
+    border: 1px solid rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.98);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 20;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms ease;
+}
+.question-image-box.has-image:hover .q-thumb-del {
+    opacity: 1;
+    visibility: visible;
+}
+.q-thumb-del:hover {
+    background: rgba(239,68,68,1);
+    border-color: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,1);
+}
+
+/* Question thumbnail: keep image visible, remove dark hover overlay; only hide the filename text on hover */
+.question-image-box.has-image [id^="image-overlay-"] {
+    background: transparent !important;
+}
+.question-image-box.has-image:hover [id^="image-overlay-"] {
+    background: transparent !important;
+}

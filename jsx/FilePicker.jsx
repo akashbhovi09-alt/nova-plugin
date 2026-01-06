@@ -154,6 +154,21 @@ $._ext.copyFile = function(sourcePath, destRelPath) {
     } catch (e) { return "ERROR:" + e.toString(); }
 }
 
+// Delete a single file by relative path inside the base directory.
+// Additive helper used by UI "Save Changes" cleanup when thumbnails are removed.
+$._ext.deleteFile = function(relPath) {
+    try {
+        if (!$._ext.baseDirPath) return "ERROR:Base path not set.";
+        if (!relPath) return "ERROR:Missing path";
+        var fullPath = $._ext.baseDirPath + "/" + relPath;
+        var f = new File(fullPath);
+        if (!f.exists) return "SUCCESS"; // already gone
+        return f.remove() ? "SUCCESS" : "ERROR:Delete failed";
+    } catch (e) {
+        return "ERROR:" + e.toString();
+    }
+}
+
 // --- GRID OPERATIONS ---
 $._ext.saveSnapshot = function() {
     try {

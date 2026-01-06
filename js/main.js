@@ -68,6 +68,35 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
         var cs = new CSInterface();
 
+        // ---------------------------------------------------------------------------------
+        // SETTINGS TAB: GRID PREVIEW BOX SIZE TWEAK (additive)
+        // Requirement:
+        // - Initially keep the existing responsive behavior.
+        // - On wider resolutions, lock width too, where width = height + 5px.
+        // This mirrors the "fixed height, responsive width" look but keeps width consistent.
+        // ---------------------------------------------------------------------------------
+        function adjustGridPreviewBox() {
+            try {
+                var box = document.getElementById('current-grid');
+                if (!box) return;
+                var wide = (window && window.innerWidth) ? (window.innerWidth >= 1024) : false;
+                if (!wide) {
+                    // Restore default (tailwind-driven) responsive sizing
+                    box.style.width = '';
+                    return;
+                }
+                // Use the rendered height as the source of truth, then set width = height + 5.
+                var h = box.getBoundingClientRect ? box.getBoundingClientRect().height : box.offsetHeight;
+                if (!h || h < 1) return;
+                box.style.width = Math.round(h + 5) + 'px';
+            } catch (e) {}
+        }
+        try {
+            // Run once after layout, and on resize.
+            setTimeout(adjustGridPreviewBox, 60);
+            window.addEventListener('resize', function(){ setTimeout(adjustGridPreviewBox, 60); });
+        } catch (e) {}
+
         // Apply Content (EXECUTE) binding
         var btnApply = document.getElementById("btn-apply-content");
         if (btnApply && typeof collectAndApplyContent === "function") {
