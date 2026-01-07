@@ -21,6 +21,9 @@
     try { $.evalFile(base + "/GridPresetIO.jsx"); } catch (e) {}
 
     try { $.evalFile(base + "/AdjustMarkerKeypad.jsx"); } catch (e) {}
+
+    // CC Attribution (CEP helper)
+    try { $.evalFile(base + "/CCattribution.jsx"); } catch (e) {}
     // Optional legacy modules (ignored per request)
     // try { $.evalFile(base + "/GridSave.jsx"); } catch (e) {}
     // try { $.evalFile(base + "/GridSnapshot.jsx"); } catch (e) {}

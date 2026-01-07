@@ -832,6 +832,41 @@ function collectAndApplyContent() {
             } else {
                 showToast("Applied to AE.");
 
+                // -------------------------------------------------------------
+                // ALSO APPLY CC ATTRIBUTION
+                // Requirement: Apply Content should trigger CCattribution.jsx too,
+                // and CCattribution.jsx must be (re)read on every Apply Content.
+                // We send an ordered list: Q1..Q6 images, then CC extra images (7..N).
+                // -------------------------------------------------------------
+                try {
+                    var ccPaths = [];
+                    for (var qi = 1; qi <= 6; qi++) {
+                        var p = (questionImages && questionImages[qi] && questionImages[qi].path) ? questionImages[qi].path : "";
+                        if (p) ccPaths.push(p);
+                    }
+                    var extra = (ccExtraImages || []).map(function (it) {
+                        return (it && it.path) ? it.path : "";
+                    }).filter(function (s) { return !!s; });
+                    ccPaths = ccPaths.concat(extra);
+
+                    // Always re-eval the CCattribution.jsx file before calling, to avoid stale loads.
+                    var extensionRoot = csInterface.getSystemPath(SystemPath.EXTENSION);
+                    var ccJsxPath = (extensionRoot + '/jsx/CCattribution.jsx').replace(/\\/g, '/');
+                    csInterface.evalScript('$.evalFile("' + ccJsxPath + '")', function () {
+                        ensureHostFunctions(["CCAttribution_applyFromCEP"], function () {
+                            var cmdCC = '$._ext.CCAttribution_applyFromCEP("' + escapeForJSX(JSON.stringify({ imagePaths: ccPaths })) + '")';
+                            csInterface.evalScript(cmdCC, function (ccRes) {
+                                if (ccRes && String(ccRes).indexOf("ERROR") === 0) {
+                                    console.error("CC Attribution error:", ccRes);
+                                    showToast("CC attribution error: " + ccRes, "error");
+                                }
+                            });
+                        });
+                    });
+                } catch (ccErr) {
+                    console.error(ccErr);
+                }
+
                 // Run AdjustMarkerKeypad based on UI checkboxes (Preserve / 60 sec / Solve A3)
                 try {
                     const preserveEl = document.getElementById("set-chk-preserve");
