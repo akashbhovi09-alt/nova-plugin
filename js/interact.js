@@ -30,6 +30,13 @@ const DEFAULT_SETTINGS = {
     compQa: "REPLACE Q&A",
     compGrid: "Grid",
     compAnswers: "ANSWERS",
+    compMainComp: "MAIN COMP",
+    compCC: "CC Attribution",
+    compKeypad: "KEYPAD",
+    compClue: "CLUE",
+    compQuestion: "Questions & BG",
+    compEndshot: "END SHOT",
+    compImage: "IMAGE",
     layerCtrl: "Controller",
     advLayerCtrl: "Advnc_Controller",
     // NOTE: CrosswordAutoPlacer.jsx builds the Q/A layer names as PREFIX + index.
@@ -40,11 +47,28 @@ const DEFAULT_SETTINGS = {
     layerA: "ANSWER ",
     layerTile: "Tile",
     layerParent: "PARENT", // REQUIREMENT: Default text "PARENT"
+    layerAnsLmt: "ANS Keypad",
+    layerTapSfx: "LETTER TAP SFX",
     fxNum: "Num",
     fxRow: "Row",
     fxCol: "Column",
     fxRot: "Rotation",
-    fxLetter: "L"
+    fxLetter: "L",
+
+    // Limits & Constants (AdjustMarkerKeypad + others)
+    afBaseFrames: "30",
+    afPerLetterFrames: "13",
+    letterGapFrames: "13",
+    fqFramesF1: "108",
+    fqFramesF2: "50",
+    fqFramesOther: "50",
+    limit30sTo: "3",
+    limit60sTo: "6",
+    markerLabelYellow: "2",
+    markerLabelAqua: "3",
+    solveA3ImageIndexFromBottom: "3",
+    solveA3OOffsetFrames: "37",
+    solveA3EndshotFromC3Frames: "60"
 };
 
 let activeTab = TABS.CONTENTS;
@@ -73,7 +97,7 @@ window.globalFrenzyCache = {};
 // 2. PROFESSIONAL NOTIFICATION SYSTEM
 // =================================================================================
 
-function showToast(msg, duration = 3000) {
+function showToast(msg, duration = 1000) {
     const toast = document.getElementById('toast-notification');
     const toastMsg = document.getElementById('toast-message');
     if (!toast || !toastMsg) return;
@@ -533,9 +557,12 @@ function generateGridButtons() {
     const grids = (typeof availableGrids !== 'undefined') ? availableGrids : [];
     grids.forEach(grid => {
         const id = grid.id;
-        const isActive = (id === activeGrid);
-        const colorClass = isActive ? 'bg-blue-600' : 'bg-blue-500';
-        buttonsHtml += `<button id="grid-btn-${id}" class="${colorClass} text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition">${id}</button>`;
+        // IMPORTANT:
+        // Do NOT bake active coloring into the HTML via bg-* classes.
+        // Active state is controlled ONLY by the 'grid-btn-active' class,
+        // otherwise multiple buttons can look active after add/delete re-renders.
+        const activeClass = (id === activeGrid) ? 'grid-btn-active' : '';
+        buttonsHtml += `<button id="grid-btn-${id}" class="bg-blue-500 ${activeClass} text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-900 transition">${id}</button>`;
     });
     // Add button for saving a new grid snapshot
     buttonsHtml += `<button id="grid-btn-add" class="text-blue-500 font-bold py-2 px-4 text-xl rounded-lg hover:text-blue-400 transition">+</button>`;
@@ -594,9 +621,17 @@ function openSettingsModal() {
         ['set-af1', 'af1'], ['set-af2', 'af2'], ['set-af3', 'af3'], ['set-af4', 'af4'], ['set-af5', 'af5'],
         ['set-min-gap', 'minGap'], ['set-rand-seed', 'randSeed'],
         ['set-chk-replace', 'replaceImage'], ['set-chk-preserve', 'preserveMarker'],
+        ['set-comp-maincomp','compMainComp'],
         ['set-comp-main', 'compMain'], ['set-comp-qa', 'compQa'], ['set-comp-grid', 'compGrid'], ['set-comp-answers', 'compAnswers'],
+        ['set-comp-cc','compCC'], ['set-comp-keypad','compKeypad'], ['set-comp-clue','compClue'], ['set-comp-question','compQuestion'], ['set-comp-endshot','compEndshot'], ['set-comp-image','compImage'],
         ['set-layer-ctrl', 'layerCtrl'], ['set-layer-adv-ctrl', 'advLayerCtrl'], ['set-layer-q', 'layerQ'], ['set-layer-a', 'layerA'], ['set-layer-tile', 'layerTile'], ['set-layer-parent', 'layerParent'],
-        ['set-fx-num', 'fxNum'], ['set-fx-row', 'fxRow'], ['set-fx-col', 'fxCol'], ['set-fx-rot', 'fxRot'], ['set-fx-letter', 'fxLetter']
+        ['set-layer-ans-lmt','layerAnsLmt'], ['set-layer-tap-sfx','layerTapSfx'],
+        ['set-fx-num', 'fxNum'], ['set-fx-row', 'fxRow'], ['set-fx-col', 'fxCol'], ['set-fx-rot', 'fxRot'], ['set-fx-letter', 'fxLetter'],
+        ['set-af-base','afBaseFrames'], ['set-af-per-letter','afPerLetterFrames'], ['set-letter-gap','letterGapFrames'],
+        ['set-fq-f1','fqFramesF1'], ['set-fq-f2','fqFramesF2'], ['set-fq-other','fqFramesOther'],
+        ['set-limit-30','limit30sTo'], ['set-limit-60','limit60sTo'],
+        ['set-marker-yellow','markerLabelYellow'], ['set-marker-aqua','markerLabelAqua'],
+        ['set-solvea3-index','solveA3ImageIndexFromBottom'], ['set-solvea3-o-offset','solveA3OOffsetFrames'], ['set-solvea3-endshot','solveA3EndshotFromC3Frames']
     ];
     fields.forEach(([elId, key]) => {
         const el = document.getElementById(elId);
@@ -645,10 +680,17 @@ function resetSettingsSection(section) {
             setChk('set-chk-replace', DEFAULT_SETTINGS.replaceImage);
             setChk('set-chk-preserve', DEFAULT_SETTINGS.preserveMarker);
         } else if (section === 'compNames') {
+            setText('set-comp-maincomp', DEFAULT_SETTINGS.compMainComp);
             setText('set-comp-main', DEFAULT_SETTINGS.compMain);
             setText('set-comp-qa', DEFAULT_SETTINGS.compQa);
             setText('set-comp-grid', DEFAULT_SETTINGS.compGrid);
             setText('set-comp-answers', DEFAULT_SETTINGS.compAnswers);
+            setText('set-comp-cc', DEFAULT_SETTINGS.compCC);
+            setText('set-comp-keypad', DEFAULT_SETTINGS.compKeypad);
+            setText('set-comp-clue', DEFAULT_SETTINGS.compClue);
+            setText('set-comp-question', DEFAULT_SETTINGS.compQuestion);
+            setText('set-comp-endshot', DEFAULT_SETTINGS.compEndshot);
+            setText('set-comp-image', DEFAULT_SETTINGS.compImage);
         } else if (section === 'layerNames') {
             setText('set-layer-ctrl', DEFAULT_SETTINGS.layerCtrl);
             setText('set-layer-adv-ctrl', DEFAULT_SETTINGS.advLayerCtrl);
@@ -656,6 +698,22 @@ function resetSettingsSection(section) {
             setText('set-layer-a', DEFAULT_SETTINGS.layerA);
             setText('set-layer-tile', DEFAULT_SETTINGS.layerTile);
             setText('set-layer-parent', DEFAULT_SETTINGS.layerParent);
+            setText('set-layer-ans-lmt', DEFAULT_SETTINGS.layerAnsLmt);
+            setText('set-layer-tap-sfx', DEFAULT_SETTINGS.layerTapSfx);
+        } else if (section === 'limits') {
+            setText('set-af-base', DEFAULT_SETTINGS.afBaseFrames);
+            setText('set-af-per-letter', DEFAULT_SETTINGS.afPerLetterFrames);
+            setText('set-letter-gap', DEFAULT_SETTINGS.letterGapFrames);
+            setText('set-fq-f1', DEFAULT_SETTINGS.fqFramesF1);
+            setText('set-fq-f2', DEFAULT_SETTINGS.fqFramesF2);
+            setText('set-fq-other', DEFAULT_SETTINGS.fqFramesOther);
+            setText('set-limit-30', DEFAULT_SETTINGS.limit30sTo);
+            setText('set-limit-60', DEFAULT_SETTINGS.limit60sTo);
+            setText('set-marker-yellow', DEFAULT_SETTINGS.markerLabelYellow);
+            setText('set-marker-aqua', DEFAULT_SETTINGS.markerLabelAqua);
+            setText('set-solvea3-index', DEFAULT_SETTINGS.solveA3ImageIndexFromBottom);
+            setText('set-solvea3-o-offset', DEFAULT_SETTINGS.solveA3OOffsetFrames);
+            setText('set-solvea3-endshot', DEFAULT_SETTINGS.solveA3EndshotFromC3Frames);
         } else if (section === 'effectNames') {
             setText('set-fx-num', DEFAULT_SETTINGS.fxNum);
             setText('set-fx-row', DEFAULT_SETTINGS.fxRow);

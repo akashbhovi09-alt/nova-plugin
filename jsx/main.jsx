@@ -21,24 +21,22 @@
     try { $.evalFile(base + "/GridPresetIO.jsx"); } catch (e) {}
 
     try { $.evalFile(base + "/AdjustMarkerKeypad.jsx"); } catch (e) {}
-
-    // CC Attribution (CEP helper)
     try { $.evalFile(base + "/CCattribution.jsx"); } catch (e) {}
     // Optional legacy modules (ignored per request)
     // try { $.evalFile(base + "/GridSave.jsx"); } catch (e) {}
     // try { $.evalFile(base + "/GridSnapshot.jsx"); } catch (e) {}
 
     // CEP-callable: generate crossword numbers
-    $._ext.genGridNum = function () {
-        GridGenAutomation_Run();
+    $._ext.genGridNum = function (jsonStr) {
+        GridGenAutomation_Run(jsonStr);
         return "OK";
     };
 
 
     // CEP-callable: adjust keypad markers (Preserve / 60 sec Video / Solve A3)
-    $._ext.adjustMarkerKeypad = function (preserve, is60, solveA3) {
+    $._ext.adjustMarkerKeypad = function (preserve, is60, solveA3, jsonStr) {
         if (typeof AdjustMarkerKeypad_run !== "function") { return "ERROR: AdjustMarkerKeypad_run not loaded."; }
-        return AdjustMarkerKeypad_run(preserve, is60, solveA3);
+        return AdjustMarkerKeypad_run(preserve, is60, solveA3, jsonStr);
     };
 
 })();

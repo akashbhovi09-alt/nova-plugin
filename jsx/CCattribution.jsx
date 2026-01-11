@@ -1,25 +1,32 @@
-// CCattribution.jsx (CEP helper)
-// Updates "CC Attribution" comp from a list of image paths/names coming from CEP.
-// The CC images are used ONLY as name references; nothing is imported into the project.
+// CCattribution.jsx (CEP host helper)
+// Headless attribution generator for NOVA CEP extension.
+// Exposes: $._ext.CCAttribution_applyFromCEP(payloadJson)
 //
-// CEP calls: $._ext.CCAttribution_applyFromCEP("{\"imagePaths\":[...]}" )
+// payloadJson: JSON string with shape { imagePaths: [ "name_or_path.png", ... ] }
+// Only the file name is used; nothing is imported into the project.
 
 (function () {
-    if (typeof $._ext === 'undefined') { $._ext = {}; }
+    if (typeof $ === "undefined") return;
+
+    if (typeof $._ext === "undefined") { $._ext = {}; }
 
     // ==================================================
-    // CONFIG (mirrors your ScriptUI defaults)
+    // CONFIGURABLE LAYOUT CONSTANTS (User Editable)
     // ==================================================
-    var H_SPACING = 1;
-    var V_SPACING = 1;
+    var WIDTH_4X5_CHECKED   = 1600; // 4x5 checked max width
+    var WIDTH_4X5_UNCHECKED = 1200; // 4x5 unchecked max width
+    var MARGIN_SIDE         = 5;    // safe margin (left & right)
 
+    var FIXED_H_SPACING = 10;       // horizontal space between names
+    var FIXED_V_SPACING = 5;        // vertical space between rows
+
+    // ==================================================
+    // LOGIC HELPERS (from your fixed ScriptUI version)
+    // ==================================================
     var FLICKR_KEYS = ["flckr", "flickr", "flicker", "fkr", "flick", "fcr", "flkr"];
     var YT_KEYS     = ["yt", "youtube", "ytb", "ytbe", "youtb", "ytube"];
     var IGNORE_KEYS = ["freepik", "freepick", "freepk", "fpk", "free", "fpick", "freepic", "fpic", "envato", "env", "ento", "evt", "envt", "envto", "en"];
 
-    // ==================================================
-    // HELPERS
-    // ==================================================
     function findComp(name) {
         for (var i = 1; i <= app.project.numItems; i++) {
             var it = app.project.item(i);
@@ -29,9 +36,9 @@
     }
 
     function findKeyInfo(str, keys) {
-        var lower = String(str || "").toLowerCase();
+        var lower = String(str).toLowerCase();
         for (var i = 0; i < keys.length; i++) {
-            var k = String(keys[i] || "").toLowerCase();
+            var k = String(keys[i]).toLowerCase();
             var idx = lower.indexOf(k);
             if (idx !== -1) return { index: idx, keyLength: k.length };
         }
@@ -40,22 +47,32 @@
 
     function extractUsernameRaw(originalName, keyInfo) {
         if (!keyInfo) return null;
+
         var after = originalName.substring(keyInfo.index + keyInfo.keyLength);
+
+        // Ignore domain endings immediately after keyword (e.g. "Flickr.com_Joe" -> "Joe")
+        after = after.replace(/^(\.com|\.in|\.net|\.org|\.co)/i, "");
+
+        // Clean leading separators
         after = after.replace(/^[_\-\s]+/, "");
+
         return after || null;
     }
 
     function getLayoutWidth() {
         var c = findComp("4x5");
-        if (!c) return 1080;
-        var l = c.layer("RATIO CTRL");
-        if (!l) return 1080;
-        var fx = l.effect("4:5");
-        try {
-            return (fx && fx.property("Checkbox").value) ? 2100 : 1080;
-        } catch (e) {
-            return 1080;
+        var baseWidth = WIDTH_4X5_UNCHECKED;
+
+        if (c) {
+            var l = c.layer("RATIO CTRL");
+            if (l) {
+                var fx = l.effect("4:5");
+                var isChecked = (fx && fx.property("Checkbox").value);
+                baseWidth = isChecked ? WIDTH_4X5_CHECKED : WIDTH_4X5_UNCHECKED;
+            }
         }
+
+        return baseWidth - (MARGIN_SIDE * 2);
     }
 
     function setText(layer, txt) {
@@ -64,275 +81,255 @@
         layer.property("Source Text").setValue(td);
     }
 
-    function applyLayerPropertiesSafe(lyr, fontName, opacityVal, scaleVal, colorVal, fontSize) {
-        try {
-            var td = lyr.property("Source Text").value;
-
-            // Font may not exist on the machine. Setting missing fonts can throw.
-            if (fontName) {
-                try { td.font = fontName; } catch (eFont) {}
-            }
-
-            td.fontSize = (typeof fontSize === "number") ? fontSize : 35;
-            td.fillColor = colorVal || [0, 0, 0];
-            td.justification = ParagraphJustification.CENTER_JUSTIFY;
-            lyr.property("Source Text").setValue(td);
-
-            if (scaleVal) lyr.property("Scale").setValue(scaleVal);
-            else lyr.property("Scale").setValue([70, 70, 100]);
-
-            lyr.property("Opacity").setValue((typeof opacityVal === "number") ? opacityVal : 100);
-        } catch (e) {
-            // Fail silently: never block the rest of the operation.
-        }
+    // Font-safe application (prevents missing-font crashes)
+    function safeSetFont(td, fontName) {
+        if (!fontName) return;
+        try { td.font = fontName; } catch (e) {}
     }
 
-    function distributeCentered(layers, comp, layoutWidth) {
+    function applyLayerProperties(lyr, fontName, opacityVal, scaleVal, colorVal) {
+        var td = lyr.property("Source Text").value;
+
+        safeSetFont(td, fontName);
+        td.fontSize = 35;
+        td.fillColor = colorVal || [0, 0, 0];
+        td.justification = ParagraphJustification.CENTER_JUSTIFY;
+
+        // Set tracking to 0 (your bug fix)
+        td.tracking = 0;
+
+        lyr.property("Source Text").setValue(td);
+        lyr.property("Scale").setValue(scaleVal || [70, 70, 100]);
+        lyr.property("Opacity").setValue(opacityVal);
+    }
+
+    /**
+     * Strictly fixed distribution logic.
+     * Places items in rows until layoutWidth is reached, then centers each row and the whole block.
+     */
+    function distributeCentered(layers, comp, layoutWidth, hSpace, vSpace) {
         if (!layers || !layers.length) return;
 
         var compCenterX = comp.width / 2;
-        var layoutLeft = compCenterX - layoutWidth / 2;
-
         var rows = [];
         var currentRow = [];
         var currentWidth = 0;
 
+        // Step 1: Divide into rows based on fixed gap and layoutWidth
         for (var i = 0; i < layers.length; i++) {
-            var r = layers[i].sourceRectAtTime(0, false);
-            if (currentRow.length && (currentWidth + H_SPACING + r.width > layoutWidth)) {
-                rows.push(currentRow);
+            var lyr = layers[i];
+            var rect = lyr.sourceRectAtTime(0, false);
+
+            if (currentRow.length > 0 && (currentWidth + hSpace + rect.width > layoutWidth)) {
+                rows.push({ items: currentRow, width: currentWidth });
                 currentRow = [];
                 currentWidth = 0;
             }
-            currentRow.push({ layer: layers[i], rect: r });
-            currentWidth += (currentRow.length > 1 ? H_SPACING : 0) + r.width;
-        }
-        if (currentRow.length) rows.push(currentRow);
 
+            currentRow.push({ layer: lyr, rect: rect });
+            currentWidth += (currentRow.length > 1 ? hSpace : 0) + rect.width;
+        }
+        if (currentRow.length > 0) rows.push({ items: currentRow, width: currentWidth });
+
+        // Step 2: Calculate heights
         var totalHeight = 0;
-        var rowHeights = [];
         for (var rIdx = 0; rIdx < rows.length; rIdx++) {
             var maxH = 0;
-            for (var j = 0; j < rows[rIdx].length; j++) {
-                maxH = Math.max(maxH, rows[rIdx][j].rect.height);
+            for (var j = 0; j < rows[rIdx].items.length; j++) {
+                maxH = Math.max(maxH, rows[rIdx].items[j].rect.height);
             }
-            rowHeights.push(maxH);
-            totalHeight += maxH + (rIdx > 0 ? V_SPACING : 0);
+            rows[rIdx].height = maxH;
+            totalHeight += maxH + (rIdx > 0 ? vSpace : 0);
         }
 
+        // Step 3: Set Positions
         var cursorY = (comp.height - totalHeight) / 2;
-        for (var rr = 0; rr < rows.length; rr++) {
-            var row = rows[rr];
-            var rowWidth = 0;
-            for (var k = 0; k < row.length; k++) {
-                rowWidth += row[k].rect.width + (k > 0 ? H_SPACING : 0);
+
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            var cursorX = compCenterX - (row.width / 2);
+
+            for (var m = 0; m < row.items.length; m++) {
+                var item = row.items[m];
+                var lyr2 = item.layer;
+                var rect2 = item.rect;
+
+                var xPos = cursorX - rect2.left;
+                var yPos = cursorY + (row.height / 2) - (rect2.top + rect2.height / 2);
+
+                lyr2.property("Position").setValue([xPos, yPos]);
+                cursorX += rect2.width + hSpace;
             }
-            var cursorX = layoutLeft + (layoutWidth - rowWidth) / 2;
-            for (var m = 0; m < row.length; m++) {
-                var lyr = row[m].layer;
-                var rect = row[m].rect;
-                lyr.property("Position").setValue([cursorX + rect.width / 2, cursorY + rect.height / 2]);
-                cursorX += rect.width + H_SPACING;
-            }
-            cursorY += rowHeights[rr] + V_SPACING;
+            cursorY += row.height + vSpace;
         }
     }
 
-    function basenameNoExt(pathOrName) {
-        if (!pathOrName) return "";
-        var s = String(pathOrName);
-        try {
-            // If it's a path, File(s).name is best.
-            if (s.indexOf("/") !== -1 || s.indexOf("\\") !== -1) {
-                s = File(s).name;
-            }
-        } catch (e) {}
-
-        try { s = decodeURIComponent(s); } catch (e2) {}
-
-        // strip extension
-        s = s.replace(/\.[^\.]+$/, "");
-        return s;
+    function normalizeToFileName(p) {
+        if (!p) return "";
+        var s = String(p);
+        s = s.replace(/\\/g, "/");
+        var parts = s.split("/");
+        return parts[parts.length - 1];
     }
 
-    function buildAttributionStrings(imagePaths) {
-        var attributions = [];
-        var bugs = [];
-        var uniqueTracker = {};
+    // ==================================================
+    // CEP ENTRYPOINT
+    // ==================================================
+    $._ext.CCAttribution_applyFromCEP = function (payloadJson) {
+        if (!app.project) return "ERROR:No project";
 
-        for (var i = 0; i < imagePaths.length; i++) {
-            var rawNameFull = basenameNoExt(imagePaths[i]);
-            if (!rawNameFull) continue;
+        var payload = null;
+        try { payload = JSON.parse(payloadJson); } catch (e) { payload = null; }
 
-            var fkInfo = findKeyInfo(rawNameFull, FLICKR_KEYS);
-            var ykInfo = findKeyInfo(rawNameFull, YT_KEYS);
-            var info = fkInfo || ykInfo;
-
-            if (!info) {
-                // If no key found, report for manual entry
-                bugs.push(rawNameFull);
-                continue;
-            }
-
-            var prefix = rawNameFull.substring(0, info.index).toLowerCase();
-            if (findKeyInfo(prefix, IGNORE_KEYS)) {
-                // ignore entries that should not be credited
-                continue;
-            }
-
-            var user = extractUsernameRaw(rawNameFull, info);
-            if (!user) {
-                bugs.push(rawNameFull);
-                continue;
-            }
-
-            var finalStr = (fkInfo ? "Flickr.com/" : "Youtube.com/") + user;
-            var key = finalStr.toLowerCase();
-            if (!uniqueTracker[key]) {
-                attributions.push(finalStr);
-                uniqueTracker[key] = true;
-            }
+        var imgList = [];
+        if (payload && payload.imagePaths && payload.imagePaths.length) {
+            imgList = payload.imagePaths;
+        } else if (payload && payload.images && payload.images.length) {
+            imgList = payload.images;
+        } else if (payload && payload.length) {
+            imgList = payload; // allow direct array
+        } else {
+            imgList = [];
         }
 
-        return { attributions: attributions, bugs: bugs };
-    }
-
-    function updateCCAttributionComp(imagePaths) {
         app.beginUndoGroup("Dynamic CC Attribution");
 
-        var ccComp = findComp("CC Attribution");
-        if (!ccComp) {
-            app.endUndoGroup();
-            return "ERROR: Comp 'CC Attribution' not found.";
-        }
-
-        var layoutWidth = getLayoutWidth();
-        var data = buildAttributionStrings(imagePaths || []);
-        var attributions = data.attributions;
-        var bugs = data.bugs;
-
-        // Collect existing attribution layers
-        var existingAttLayers = [];
-        for (var k = 1; k <= ccComp.numLayers; k++) {
-            var lyr = ccComp.layer(k);
-            if (lyr && lyr.name && lyr.name.indexOf("Attribution ") === 0) {
-                existingAttLayers.push(lyr);
-            }
-        }
-
-        existingAttLayers.sort(function (a, b) {
-            var numA = parseInt(String(a.name).split(" ")[1], 10) || 0;
-            var numB = parseInt(String(b.name).split(" ")[1], 10) || 0;
-            return numA - numB;
-        });
-
-        // Ensure template exists
-        var template = null;
-        try { template = ccComp.layer("Attribution 1"); } catch (eT) {}
-        if (!template) {
-            template = ccComp.layers.addText("");
-            template.name = "Attribution 1";
-            applyLayerPropertiesSafe(template, "Roboto-Regular", 45, [70, 70, 100], [0, 0, 0], 35);
-            template.moveToEnd();
-        }
-
-        // Delete all existing Attribution layers except template
-        for (var e = existingAttLayers.length - 1; e >= 0; e--) {
-            if (existingAttLayers[e] && existingAttLayers[e].name !== "Attribution 1") {
-                try { existingAttLayers[e].remove(); } catch (eR) {}
-            }
-        }
-
-        // Reset template and build fresh list
-        setText(template, "");
-        var freshLayers = [template];
-
-        if (attributions.length > 0) {
-            setText(template, attributions[0]);
-            for (var d = 1; d < attributions.length; d++) {
-                var newLyr = template.duplicate();
-                newLyr.name = "Attribution " + (d + 1);
-                setText(newLyr, attributions[d]);
-                freshLayers.push(newLyr);
-            }
-        }
-
-        // Result layer
-        var resultLyr = null;
-        try { resultLyr = ccComp.layer("Result"); } catch (eRes) {}
-        if (!resultLyr) {
-            resultLyr = ccComp.layers.addText("");
-            resultLyr.name = "Result";
-            resultLyr.guideLayer = true;
-            resultLyr.moveToBeginning();
-        }
-
-        applyLayerPropertiesSafe(resultLyr, "Roboto-Bold", 100, [45, 45, 100], [0.5, 0, 0], 35);
-
-        // Center result at top with padding
         try {
+            var ccComp = findComp("CC Attribution");
+            if (!ccComp) {
+                app.endUndoGroup();
+                return "ERROR:Comp 'CC Attribution' not found.";
+            }
+
+            var layoutWidth = getLayoutWidth();
+
+            var attributions = [];
+            var bugs = [];
+            var uniqueTracker = {};
+
+            for (var i = 0; i < imgList.length; i++) {
+                var rawNameFull = decodeURIComponent(normalizeToFileName(imgList[i]));
+                if (!rawNameFull) continue;
+
+                // remove extension
+                var rawName = rawNameFull.replace(/\.[^\.]+$/, "");
+
+                var fkInfo = findKeyInfo(rawName, FLICKR_KEYS);
+                var ykInfo = findKeyInfo(rawName, YT_KEYS);
+                var info = fkInfo || ykInfo;
+
+                if (!info) { bugs.push(rawNameFull); continue; }
+
+                var prefix = rawName.substring(0, info.index).toLowerCase();
+                if (findKeyInfo(prefix, IGNORE_KEYS)) continue;
+
+                var user = extractUsernameRaw(rawName, info);
+                if (!user) { bugs.push(rawNameFull); continue; }
+
+                var finalStr = (fkInfo ? "Flickr.com/" : "Youtube.com/") + user;
+
+                var key = finalStr.toLowerCase();
+                if (!uniqueTracker[key]) {
+                    attributions.push(finalStr);
+                    uniqueTracker[key] = true;
+                }
+            }
+
+            // Collect existing attribution layers (robust):
+            // Different projects may name them "Attribution I", "Attribution1", etc.
+            // We treat ANY layer whose name starts with "Attribution" (case-insensitive) as an attribution layer.
+            var existingAttLayers = [];
+            for (var k = 1; k <= ccComp.numLayers; k++) {
+                var lyr = ccComp.layer(k);
+                if (!lyr) continue;
+                if (/^attribution/i.test(String(lyr.name))) existingAttLayers.push(lyr);
+            }
+
+            // Prefer an existing "Attribution 1" as template; otherwise reuse the first attribution layer found.
+            var template = ccComp.layer("Attribution 1");
+            if (!template && existingAttLayers.length > 0) {
+                template = existingAttLayers[0];
+                try { template.name = "Attribution 1"; } catch (_) {}
+            }
+            if (!template) {
+                template = ccComp.layers.addText("");
+                template.name = "Attribution 1";
+                template.moveToEnd();
+            }
+
+            // Remove ALL other attribution layers so every run is fresh.
+            for (var e = existingAttLayers.length - 1; e >= 0; e--) {
+                var ly = existingAttLayers[e];
+                if (!ly) continue;
+                if (ly === template) continue;
+                try { ly.remove(); }
+                catch (rmErr) {
+                    // Fallback: if locked / protected, neutralize it so stale text can't show.
+                    try { setText(ly, ""); } catch (_) {}
+                    try { ly.enabled = false; } catch (_) {}
+                }
+            }
+
+            // Ensure template is enabled for this run
+            try { template.enabled = true; } catch (_) {}
+
+            // Reset template
+            setText(template, "");
+            applyLayerProperties(template, "Roboto-Regular", 45, [70, 70, 100], [0, 0, 0]);
+
+            var freshLayers = [template];
+
+            if (attributions.length > 0) {
+                setText(template, attributions[0]);
+                for (var d = 1; d < attributions.length; d++) {
+                    var newLyr = template.duplicate();
+                    newLyr.name = "Attribution " + (d + 1);
+                    setText(newLyr, attributions[d]);
+                    freshLayers.push(newLyr);
+                }
+            }
+
+            // Result layer
+            var resultLyr = ccComp.layer("Result");
+            if (!resultLyr) {
+                resultLyr = ccComp.layers.addText("");
+                resultLyr.name = "Result";
+                resultLyr.guideLayer = true;
+                resultLyr.moveToBeginning();
+            }
+
+            applyLayerProperties(resultLyr, "Roboto-Bold", 100, [45, 45, 100], [0.5, 0, 0]);
+
+            // Position result near top
             var resRect = resultLyr.sourceRectAtTime(0, false);
             resultLyr.property("Position").setValue([ccComp.width / 2, 10 + resRect.height / 2]);
-        } catch (ePos) {}
 
-        // Move attribution layers after Result
-        for (var l = freshLayers.length - 1; l >= 0; l--) {
-            try {
-                freshLayers[l].moveAfter(resultLyr);
-            } catch (eMove) {}
-        }
+            // Keep attributions after Result layer
+            for (var l = freshLayers.length - 1; l >= 0; l--) {
+                try { freshLayers[l].moveAfter(resultLyr); } catch (mvErr) {}
+            }
 
-        distributeCentered(freshLayers, ccComp, layoutWidth);
+            // Sort fresh layers by width (as in your logic) before distributing
+            freshLayers.sort(function (a, b) {
+                return b.sourceRectAtTime(0, false).width - a.sourceRectAtTime(0, false).width;
+            });
 
-        // Update result text
-        if (resultLyr) {
-            var msg = bugs.length ? ("[ " + bugs.join(", ") + " ] please enter manually") : "";
-            setText(resultLyr, msg);
-            try {
+            distributeCentered(freshLayers, ccComp, layoutWidth, FIXED_H_SPACING, FIXED_V_SPACING);
+
+            // Update Result text
+            if (resultLyr) {
+                setText(resultLyr, bugs.length ? "[ " + bugs.join(", ") + " ] please enter manually" : "");
                 var updatedResRect = resultLyr.sourceRectAtTime(0, false);
                 resultLyr.property("Position").setValue([ccComp.width / 2, 10 + updatedResRect.height / 2]);
-            } catch (ePos2) {}
+            }
+
+        } catch (err) {
+            app.endUndoGroup();
+            return "ERROR:" + err.toString();
         }
 
         app.endUndoGroup();
         return "OK";
-    }
-
-    // ==================================================
-    // CEP EXPOSED ENTRY
-    // ==================================================
-    $._ext.CCAttribution_applyFromCEP = function (jsonStr) {
-        try {
-            var data = null;
-            try {
-                data = (jsonStr && jsonStr.length) ? JSON.parse(jsonStr) : null;
-            } catch (eParse) {
-                // If host passes an array directly as string
-                data = null;
-            }
-
-            var imagePaths = [];
-            if (data && data.imagePaths && data.imagePaths.length) {
-                imagePaths = data.imagePaths;
-            } else {
-                // Fallback: if caller passed JSON array directly
-                try {
-                    var arr = JSON.parse(jsonStr);
-                    if (arr && arr.length) imagePaths = arr;
-                } catch (e2) {}
-            }
-
-            // Normalize + filter empties
-            var cleaned = [];
-            for (var i = 0; i < imagePaths.length; i++) {
-                var s = String(imagePaths[i] || "");
-                if (s) cleaned.push(s);
-            }
-
-            return updateCCAttributionComp(cleaned);
-        } catch (e) {
-            return "ERROR: CC Attribution failed: " + e.toString();
-        }
     };
 
 })();

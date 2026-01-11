@@ -1,4 +1,4 @@
-function GridGenAutomation_Run(){
+function GridGenAutomation_Run(jsonStr){
 function getCompByName(name){
     for (var i=1;i<=app.project.numItems;i++){
       var it=app.project.item(i);
@@ -8,22 +8,30 @@ function getCompByName(name){
   }
 
   function run(){
-    var comp=getCompByName("Grid");
+    var cfg=null; try{ cfg=jsonStr?JSON.parse(jsonStr):null; }catch(e){ cfg=null; }
+    var COMP_GRID = (cfg && cfg.compGrid) ? cfg.compGrid : "Grid";
+    var LAYER_CTRL = (cfg && cfg.layerCtrl) ? cfg.layerCtrl : "Controller";
+    var FX_ROW = (cfg && cfg.fxRow) ? cfg.fxRow : "Row";
+    var FX_COL = (cfg && cfg.fxCol) ? cfg.fxCol : "Column";
+    var TILE_SRC = (cfg && cfg.layerTile) ? cfg.layerTile : "Tile";
+    var EP_NUM = (cfg && cfg.fxNum) ? cfg.fxNum : "Num";
+
+    var comp=getCompByName(COMP_GRID);
     if(!comp){ alert("Comp 'Grid' not found"); return; }
 
     var ctrl=null;
-    try{ ctrl=comp.layer("Controller"); }catch(e){}
+    try{ ctrl=comp.layer(LAYER_CTRL); }catch(e){}
     if(!ctrl){ alert("Layer 'Controller' not found in 'Grid'"); return; }
 
-    var rows=Math.round(ctrl.effect("Row")("Slider").value);
-    var cols=Math.round(ctrl.effect("Column")("Slider").value);
+    var rows=Math.round(ctrl.effect(FX_ROW)("Slider").value);
+    var cols=Math.round(ctrl.effect(FX_COL)("Slider").value);
     if(!(rows>0 && cols>0)){ alert("Controller Row/Column must be > 0"); return; }
 
     // collect Tile layers only
     var tiles=[];
     for (var i=1;i<=comp.numLayers;i++){
       var L=comp.layer(i);
-      if (L.source && L.source instanceof CompItem && L.source.name==="Tile"){
+      if (L.source && L.source instanceof CompItem && L.source.name===TILE_SRC){
         var p=L.property("Position").value; // [x,y]
         tiles.push({L:L,x:p[0],y:p[1]});
       }
@@ -62,7 +70,7 @@ function getCompByName(name){
     for (var i=0;i<total;i++){
       var L=tiles[i].L;
       var ep=L.property("Essential Properties");
-      if (ep && ep.property("Num")) ep.property("Num").setValue("");
+      if (ep && ep.property(EP_NUM)) ep.property(EP_NUM).setValue("");
     }
 
     var num=0;
@@ -73,7 +81,7 @@ function getCompByName(name){
 
       if (!L.enabled){ // treat disabled as black
         var ep0=L.property("Essential Properties");
-        if (ep0 && ep0.property("Num")) ep0.property("Num").setValue("");
+        if (ep0 && ep0.property(EP_NUM)) ep0.property(EP_NUM).setValue("");
         continue;
       }
 
@@ -96,10 +104,10 @@ function getCompByName(name){
         num = prior+1;
 
         var ep=L.property("Essential Properties");
-        if (ep && ep.property("Num")) ep.property("Num").setValue(String(num));
+        if (ep && ep.property(EP_NUM)) ep.property(EP_NUM).setValue(String(num));
       } else {
         var ep2=L.property("Essential Properties");
-        if (ep2 && ep2.property("Num")) ep2.property("Num").setValue("");
+        if (ep2 && ep2.property(EP_NUM)) ep2.property(EP_NUM).setValue("");
       }
     }
 

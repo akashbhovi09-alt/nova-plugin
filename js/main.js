@@ -109,13 +109,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
         btn.addEventListener("click", function () {
             // Ensure host entry is loaded (jsx/main.jsx) then call exposed function
-            cs.evalScript('$._ext && $._ext.genGridNum ? $._ext.genGridNum() : "ERR_NO_EXT"', function (res) {
+            var raw = "{}";
+            try { raw = localStorage.getItem('nova_savedSettings') || "{}"; } catch (e) {}
+            function escForJSX(s){ return (s||"").toString().replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r?\n/g,"\\n"); }
+            var cfg = escForJSX(raw);
+            cs.evalScript('$._ext && $._ext.genGridNum ? $._ext.genGridNum(\"'+cfg+'\") : \"ERR_NO_EXT\"', function (res) {
                 if (res && res.toString().indexOf("ERR") === 0) {
                     // Fallback: try loading host entry again, then re-run
                     var extensionRoot = cs.getSystemPath(SystemPath.EXTENSION);
                     var safePath = (extensionRoot + "/jsx/main.jsx").replace(/\\/g, "/");
                     cs.evalScript('$.evalFile("' + safePath + '")', function () {
-                        cs.evalScript('$._ext && $._ext.genGridNum ? $._ext.genGridNum() : "ERR_NO_EXT_AFTER_LOAD"');
+                        cs.evalScript('$._ext && $._ext.genGridNum ? $._ext.genGridNum(\"'+cfg+'\") : \"ERR_NO_EXT_AFTER_LOAD\"');
                     });
                 }
             });

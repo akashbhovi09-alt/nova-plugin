@@ -390,6 +390,35 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
     opacity: 1;
     transition: opacity 140ms ease;
 }
+
+/* Image preview overlay (CONTENTS tab question panels)
+   Normal: 20% dark overlay
+   Hover: 0% overlay
+   Only when an image is present (has-image).
+*/
+.question-image-box.has-image::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.30);
+    opacity: 1;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 140ms ease;
+}
+.question-image-box.has-image:hover::after {
+    opacity: 0;
+}
+
+/* SETTINGS tab: grid preset button active state
+   Make selected button darker blue (near black) while keeping existing hover colors.
+   Note: we use !important to override utility background classes.
+*/
+#grid-buttons button.grid-btn-active {
+    background-color: #172964 !important;
+    border-width: 1px;
+    border-color: #3453b8;
+}
 /* Keep overlay itself visible; only hide its text on hover */
 .question-image-box.has-image:hover [id^="image-overlay-"] span {
     opacity: 0;
@@ -434,4 +463,22 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 }
 .question-image-box.has-image:hover [id^="image-overlay-"] {
     background: transparent !important;
+}
+
+
+.toast-bg {
+    background-color: #2aed6e;
+    border-radius: 20px;
+    padding: 2px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #000;
+    text-align: center;
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    box-shadow: 0 0 50px rgba(13, 23, 67, 0.9);
+    animation: toast-animation 1s ease-in-out;
+    border-width: 1px;
+    border-style: solid;
+    
+    border-color: #0b1e46; /* Black */
 }

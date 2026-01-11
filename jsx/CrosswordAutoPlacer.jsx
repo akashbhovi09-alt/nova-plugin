@@ -557,19 +557,65 @@ function defaultMatch_forRow(i0){
         }
         return null;
     }
+    function _getFootageFileName(it){
+        try{
+            if(it && (it instanceof FootageItem) && it.mainSource && it.mainSource.file){
+                return String(it.mainSource.file.name || "");
+            }
+        }catch(_){}
+        try{ return String(it.name || ""); }catch(__){}
+        return "";
+    }
+
     function _findFootageByNameInFolder(folder, targetName){
         if(!folder || !targetName) return null;
+        var tName = String(targetName).toLowerCase();
         try{
-            var tName = String(targetName);
             for(var i=1; i<=folder.numItems; i++){
                 var it = folder.item(i);
                 if(it instanceof FootageItem){
-                    try{
-                        if(String(it.name)===tName) return it;
-                    }catch(_){ }
+                    var fn = _getFootageFileName(it).toLowerCase();
+                    if(fn===tName) return it;
                 }
             }
+        }catch(_){}
+        return null;
+    }
+
+    // Remove duplicate FootageItems by *file name* within a specific folder.
+
+    // We only remove duplicates inside the CLUE IMAGE [new] folder to avoid breaking
+    // other comps that may reference similarly named footage elsewhere in the project.
+    function _removeDuplicateFootageByNameInFolder(folder, targetName, keepItem){
+        if(!folder || !targetName) return;
+        var tName = String(targetName).toLowerCase();
+        try{
+            for(var i=folder.numItems; i>=1; i--){
+                try{
+                    var it = folder.item(i);
+                    if(it && (it instanceof FootageItem) && it !== keepItem){
+                        var fn = _getFootageFileName(it).toLowerCase();
+                        if(fn===tName){
+                            it.remove();
+                        }
+                    }
+                }catch(_){ }
+            }
         }catch(_){ }
+    }
+
+    function _findAnyFootageByName(targetName){
+        if(!targetName) return null;
+        var tName = String(targetName).toLowerCase();
+        for(var i=1;i<=app.project.numItems;i++){
+            var it=app.project.item(i);
+            if(it instanceof FootageItem){
+                try{
+                    var fn = _getFootageFileName(it).toLowerCase();
+                    if(fn===tName) return it;
+                }catch(_){ }
+            }
+        }
         return null;
     }
 
@@ -597,21 +643,38 @@ function defaultMatch_forRow(i0){
             try{ clueFolder.parentFolder = rootFolder; }catch(_){}
         }
 
-        // BUGFIX: avoid duplicate footage items when re-applying content with overlapping images.
-        // If the CLUE IMAGE [new] folder already contains "same name + same extension",
-        // we REPLACE that existing FootageItem with the newly provided file.
+        // BUGFIXES (IMAGES):
+        // 1) If a file with the same NAME+EXT already exists in CLUE IMAGE [new], replace it.
+        //    Also remove any duplicates of that same name inside CLUE IMAGE [new].
+        // 2) If a file with the same NAME+EXT exists elsewhere in the project (even from a
+        //    different path), do NOT import a duplicate. Reuse that item, move it into
+        //    CLUE IMAGE [new], and replace it with the newly provided file.
+        // 3) Only de-dupe *inside* CLUE IMAGE [new] to avoid breaking other comps.
+
         var byName=_findFootageByNameInFolder(clueFolder, f.name);
         if(byName){
             try{ byName.replace(f); }catch(_){
                 try{ if(byName.mainSource) byName.mainSource.reload(); }catch(__){}
             }
+            _removeDuplicateFootageByNameInFolder(clueFolder, f.name, byName);
             return byName;
+        }
+
+        var anyByName=_findAnyFootageByName(f.name);
+        if(anyByName){
+            try{ anyByName.parentFolder = clueFolder; }catch(_){ }
+            try{ anyByName.replace(f); }catch(_){
+                try{ if(anyByName.mainSource) anyByName.mainSource.reload(); }catch(__){}
+            }
+            _removeDuplicateFootageByNameInFolder(clueFolder, f.name, anyByName);
+            return anyByName;
         }
 
         // If exact file path is already imported anywhere, re-use it and move under CLUE IMAGE [new].
         var ex=_alreadyImportedFootageByFsName(f.fsName);
         if(ex){
             try{ ex.parentFolder = clueFolder; }catch(_){ }
+            _removeDuplicateFootageByNameInFolder(clueFolder, f.name, ex);
             return ex;
         }
 
@@ -621,6 +684,7 @@ function defaultMatch_forRow(i0){
         var ft=null;
         try{ ft=app.project.importFile(io); }catch(_){ return null; }
         try{ ft.parentFolder = clueFolder; }catch(_){}
+        _removeDuplicateFootageByNameInFolder(clueFolder, f.name, ft);
         return ft;
     }
     
@@ -1359,9 +1423,30 @@ if(!isEmptyText(qUI)){
                 }
 
 // Images apply
+                var __seenImageName = {};
                 for(var i=0;i<NUM_ROWS_TO_PROCESS;i++){
                     var selPath=rows[i]._img.getImagePath();
                     if(!selPath) continue;
+
+                    // De-dupe images by NAME+EXT (different paths do not count as unique).
+                    // If the same filename is selected multiple times, we only allow the first.
+                    var fTmp = new File(String(selPath));
+                    var nameKey = '';
+                    try{ nameKey = String(fTmp.name).toLowerCase(); }catch(_){ nameKey = String(selPath).toLowerCase(); }
+                    if(nameKey && __seenImageName[nameKey]){
+                        // If replace mode is on, remove existing layers from this holder so duplicates don't sneak in.
+                        try{
+                            var holderDup = getImageHolderComp(i+1);
+                            if(holderDup && holderDup instanceof CompItem){
+                                for(var liD=holderDup.numLayers; liD>=1; liD--){
+                                    try{ var LD=holderDup.layer(liD); if(LD instanceof AVLayer) LD.remove(); }catch(_){ }
+                                }
+                            }
+                        }catch(_){ }
+                        log += ' [IMG'+(i+1)+':dup]';
+                        continue;
+                    }
+                    if(nameKey) __seenImageName[nameKey] = true;
 
                     var holder=getImageHolderComp(i+1);
                     if(!holder){ log += ' [IMG'+(i+1)+':missing]'; continue; }
@@ -1469,6 +1554,53 @@ if(!isEmptyText(qUI)){
 
             // Trigger original Apply All handler
             __CEP_UI.btn.onClick();
+            // After content placement/import, auto-update CC Attribution comp.
+            // IMPORTANT: Only consider images selected in the UI payload (Questions + CC Extra Images).
+            // Do NOT scan the Project Panel, otherwise old/unused items will leak into the attribution.
+            try {
+                if (typeof $._ext !== 'undefined' && typeof $._ext.CCAttribution_applyFromCEP === 'function') {
+                    var names = [];
+                    var seen = {};
+
+                    function pushFileNameFromPath(pth) {
+                        if (!pth) return;
+                        var s = String(pth);
+                        var fn = s;
+                        try {
+                            // If it's a full path, File().name returns only "name.ext".
+                            var f = new File(s);
+                            if (f && f.name) fn = String(f.name);
+                        } catch (_) {
+                            // keep raw
+                        }
+                        fn = String(fn || '');
+                        if (!fn) return;
+                        var key = fn.toLowerCase();
+                        if (seen[key]) return;
+                        seen[key] = true;
+                        names.push(fn);
+                    }
+
+                    // From questions (imagePath)
+                    if (payload && payload.rows && payload.rows.length) {
+                        for (var ri = 0; ri < payload.rows.length; ri++) {
+                            var rRow = payload.rows[ri];
+                            if (rRow && rRow.imagePath) pushFileNameFromPath(rRow.imagePath);
+                        }
+                    }
+
+                    // From CC panel extra images
+                    if (payload && payload.ccExtraImages && payload.ccExtraImages.length) {
+                        for (var ci = 0; ci < payload.ccExtraImages.length; ci++) {
+                            pushFileNameFromPath(payload.ccExtraImages[ci]);
+                        }
+                    }
+
+                    $._ext.CCAttribution_applyFromCEP(JSON.stringify({ imagePaths: names }));
+                }
+            } catch (_ccErr) {
+                // Non-fatal
+            }
 
             return __CEP_UI.status && __CEP_UI.status.text ? String(__CEP_UI.status.text) : 'SUCCESS';
 

@@ -47,7 +47,7 @@
   // A->F spacing rule (PER REQUEST)
   // Distance from Aᵢ to Fᵢ = baseFrames + (answerLength * perLetterFrames)
   var AF_BASE_FRAMES_DEFAULT = 30;
-  var AF_PER_LETTER_FRAMES_DEFAULT = 13;
+  var AF_PER_LETTER_FRAMES = 13;
 
   // KEYPAD spacing rule
   var FIRST_GAP_FRAMES = 5;
@@ -112,11 +112,55 @@
   // Solve A3 behavior constants
   // =========================
   var SOLVEA3_IMAGE_LAYER_NAME = "IMAGE"; // inside CLUE comp (multiple layers named "IMAGE")
-  var SOLVEA3_IMAGE_TARGET_INDEX_FROM_BOTTOM = 3; // 3rd IMAGE from bottom
+  var SOLVE_NUM_30sec = 3; // 3rd IMAGE from bottom
   var SOLVEA3_I_MARKER_NAME = "I";
   var SOLVEA3_O_MARKER_NAME = "O";
-  var SOLVEA3_O_OFFSET_FRAMES = 37; // O after I by 37 frames
-  var SOLVEA3_ENDSHOT_FROM_C3_FRAMES = 60; // when Solve A3 OFF: endshot = C3 + 60f
+  var SOLVEA3_OFFSET = 37; // O after I by 37 frames
+  var ENDSHOT_OFF_30SEC = 60; // when Solve A3 OFF: endshot = C3 + 60f
+
+  // =========================
+  // NOVA_CONFIG_OVERRIDE (from CEP Settings)
+  // =========================
+  function __novaSafeJSONParse(s){
+    try{ return JSON.parse(s); }catch(e){ return null; }
+  }
+  function __novaApplyOverrides(jsonStr){
+    var cfg = null;
+    if (jsonStr && typeof jsonStr === "string") cfg = __novaSafeJSONParse(jsonStr);
+    if (!cfg && typeof $.global !== "undefined") cfg = $.global.__NOVA_SETTINGS__;
+    if (!cfg) return;
+    // Accept either the full savedSettings object or {settings: savedSettings}
+    var s = (cfg.settings && typeof cfg.settings === "object") ? cfg.settings : cfg;
+
+    // Comp names
+    if (s.compMainComp) MAIN_COMP_NAME = s.compMainComp;
+    if (s.compQa) REPLACE_QA_COMP_NAME = s.compQa;
+    if (s.compKeypad) KEYPAD_COMP_NAME = s.compKeypad;
+    if (s.compClue) CLUE_LAYER_NAME = s.compClue;
+    if (s.compQuestion) QBG_LAYER_NAME = s.compQuestion;
+    if (s.compEndshot) END_SHOT_LAYER_NAME = s.compEndshot;
+    if (s.compImage) SOLVEA3_IMAGE_LAYER_NAME = s.compImage;
+
+    // Layer names
+    if (s.layerAnsLmt) ANS_KEYPAD_LAYER_NAME = s.layerAnsLmt;
+    if (s.layerTapSfx) LETTER_TAP_SFX_LAYER_NAME = s.layerTapSfx;
+
+    // Limits & constants (numbers)
+    function n(v, d){ var x = parseFloat(v); return isNaN(x) ? d : x; }
+    AF_BASE_FRAMES_DEFAULT = n(s.afBaseFrames, AF_BASE_FRAMES_DEFAULT);
+    AF_PER_LETTER_FRAMES = n(s.afPerLetterFrames, AF_PER_LETTER_FRAMES);
+    LETTER_GAP_FRAMES = n(s.letterGapFrames, LETTER_GAP_FRAMES);
+    FQ_FRAMES_F1 = n(s.fqFramesF1, FQ_FRAMES_F1);
+    FQ_FRAMES_F2 = n(s.fqFramesF2, FQ_FRAMES_F2);
+    FQ_FRAMES_OTHER = n(s.fqFramesOther, FQ_FRAMES_OTHER);
+    LIMIT_30S_TO = n(s.limit30sTo, LIMIT_30S_TO);
+    LIMIT_60S_TO = n(s.limit60sTo, LIMIT_60S_TO);
+    MARKER_LABEL_YELLOW = n(s.markerLabelYellow, MARKER_LABEL_YELLOW);
+    MARKER_LABEL_AQUA = n(s.markerLabelAqua, MARKER_LABEL_AQUA);
+    SOLVE_NUM_30sec = n(s.solveA3ImageTargetIndex, SOLVE_NUM_30sec);
+    SOLVEA3_OFFSET = n(s.solveA3OOffsetFrames, SOLVEA3_OFFSET);
+    ENDSHOT_OFF_30SEC = n(s.solveA3EndshotFromC3Frames, ENDSHOT_OFF_30SEC);
+  }
   // =========================
   // Core Logic
   // =========================
@@ -129,14 +173,14 @@
     //--Newly added I and O marker function for 60 sec checked
     // ===== CLUE IMAGE #3 MARKER ENFORCEMENT (60s FIX) =====
 function enforceClueImage3Markers(forceO){
-  var clueComp = findCompByName("CLUE");
+  var clueComp = findCompByName(CLUE_LAYER_NAME);
   if (!(clueComp instanceof CompItem)) return;
 
   // Find IMAGE layers from bottom
   var images = [];
   for (var i = clueComp.numLayers; i >= 1; i--) {
     var L = clueComp.layer(i);
-    if (L && L.name === "IMAGE") {
+    if (L && L.name === SOLVEA3_IMAGE_LAYER_NAME) {
       images.push(L);
       if (images.length === 3) break;
     }
@@ -151,23 +195,23 @@ function enforceClueImage3Markers(forceO){
   var tI = img3.inPoint;
 
   // Always enforce I marker
-  var mvI = new MarkerValue("I");
-  mvI.label = 2;
+  var mvI = new MarkerValue(SOLVEA3_I_MARKER_NAME);
+  mvI.label = MARKER_LABEL_YELLOW;
   mp.setValueAtTime(tI, mvI);
 
   // Handle O marker
-  var tO = tI + (37 / fps);
+  var tO = tI + (SOLVEA3_OFFSET / fps);
 
   // Remove existing O
   for (var k = mp.numKeys; k >= 1; k--) {
-    if (mp.keyValue(k).comment === "O") {
+    if (mp.keyValue(k).comment === SOLVEA3_O_MARKER_NAME) {
       mp.removeKey(k);
     }
   }
 
   if (forceO) {
-    var mvO = new MarkerValue("O");
-    mvO.label = 2;
+    var mvO = new MarkerValue(SOLVEA3_O_MARKER_NAME);
+    mvO.label = MARKER_LABEL_YELLOW;
     mp.setValueAtTime(tO, mvO);
   }
 }
@@ -391,7 +435,7 @@ if (is60Sec) {
       return FQ_FRAMES_OTHER;
     }
     function distAF_frames(answerLen){
-      return AF_BASE_FRAMES_DEFAULT + (answerLen * AF_PER_LETTER_FRAMES_DEFAULT);
+      return AF_BASE_FRAMES_DEFAULT + (answerLen * AF_PER_LETTER_FRAMES);
     }
 
     // -------- Compute NEW timeline (left → right) --------
@@ -485,7 +529,7 @@ if (is60Sec) {
           var L = clueComp.layer(li);
           if(L && L.name === SOLVEA3_IMAGE_LAYER_NAME){
             foundCount++;
-            if(foundCount === SOLVEA3_IMAGE_TARGET_INDEX_FROM_BOTTOM){
+            if(foundCount === SOLVE_NUM_30sec){
               targetImageLayer = L;
               break;
             }
@@ -502,7 +546,7 @@ if (is60Sec) {
           setTimeByNameColored(targetImageLayer, SOLVEA3_I_MARKER_NAME, tI, MARKER_LABEL_YELLOW);
 
           if(solveA3){
-            var tO = tI + (SOLVEA3_O_OFFSET_FRAMES / fpsClue);
+            var tO = tI + (SOLVEA3_OFFSET / fpsClue);
             setTimeByNameColored(targetImageLayer, SOLVEA3_O_MARKER_NAME, tO, MARKER_LABEL_YELLOW);
           }else{
             removeMarkerByName(targetImageLayer, SOLVEA3_O_MARKER_NAME);
@@ -532,9 +576,9 @@ if (is60Sec) {
 
       if(!is60Sec && !solveA3){
         if(tC_new[3] != null){
-          endShotStart = tC_new[3] + (SOLVEA3_ENDSHOT_FROM_C3_FRAMES / fpsMain);
+          endShotStart = tC_new[3] + (ENDSHOT_OFF_30SEC / fpsMain);
         }else{
-          endShotStart = (SOLVEA3_ENDSHOT_FROM_C3_FRAMES / fpsMain);
+          endShotStart = (ENDSHOT_OFF_30SEC / fpsMain);
         }
       }else{
         var last = FINAL_A_INDEX;
@@ -718,7 +762,43 @@ if (bgmLayer) {
   // =========================
   // CEP ENTRYPOINT (NO UI)
   // =========================
-  function AdjustMarkerKeypad_run(preserveGaps, is60Sec, solveA3) {
+  function AdjustMarkerKeypad_run(preserveGaps, is60Sec, solveA3, jsonStr) {
+    
+      // Apply Nova settings overrides (from CEP)
+      try {
+        if (jsonStr && typeof jsonStr === 'string') {
+          var cfg = null;
+          try { cfg = JSON.parse(jsonStr); } catch(e) { cfg = null; }
+          if (cfg && typeof cfg === 'object') {
+            // Comp names
+            if (cfg.compMainComp) MAIN_COMP_NAME = cfg.compMainComp;
+            if (cfg.compMain) GRID_LAYER_NAME = cfg.compMain; // legacy mapping
+            if (cfg.compQuestion) QBG_LAYER_NAME = cfg.compQuestion;
+            if (cfg.compClue) CLUE_LAYER_NAME = cfg.compClue;
+            if (cfg.compKeypad) { KEYPAD_LAYER_NAME = cfg.compKeypad; KEYPAD_COMP_NAME = cfg.compKeypad; }
+            if (cfg.compQa) REPLACE_QA_COMP_NAME = cfg.compQa;
+            if (cfg.compEndshot) END_SHOT_LAYER_NAME = cfg.compEndshot;
+            if (cfg.compImage) SOLVEA3_IMAGE_LAYER_NAME = cfg.compImage;
+            // Layer names
+            if (cfg.layerAnsLmt) ANS_KEYPAD_LAYER_NAME = cfg.layerAnsLmt;
+            if (cfg.layerTapSfx) LETTER_TAP_SFX_LAYER_NAME = cfg.layerTapSfx;
+            // Limits/constants
+            if (cfg.afBaseFrames) AF_BASE_FRAMES_DEFAULT = parseFloat(cfg.afBaseFrames) || AF_BASE_FRAMES_DEFAULT;
+            if (cfg.afPerLetterFrames) AF_PER_LETTER_FRAMES = parseFloat(cfg.afPerLetterFrames) || AF_PER_LETTER_FRAMES;
+            if (cfg.letterGapFrames) LETTER_GAP_FRAMES = parseFloat(cfg.letterGapFrames) || LETTER_GAP_FRAMES;
+            if (cfg.fqFramesF1) FQ_FRAMES_F1 = parseFloat(cfg.fqFramesF1) || FQ_FRAMES_F1;
+            if (cfg.fqFramesF2) FQ_FRAMES_F2 = parseFloat(cfg.fqFramesF2) || FQ_FRAMES_F2;
+            if (cfg.fqFramesOther) FQ_FRAMES_OTHER = parseFloat(cfg.fqFramesOther) || FQ_FRAMES_OTHER;
+            if (cfg.limit30sTo) LIMIT_30S_TO = parseInt(cfg.limit30sTo,10) || LIMIT_30S_TO;
+            if (cfg.limit60sTo) LIMIT_60S_TO = parseInt(cfg.limit60sTo,10) || LIMIT_60S_TO;
+            if (cfg.markerLabelYellow) MARKER_LABEL_YELLOW = parseInt(cfg.markerLabelYellow,10) || MARKER_LABEL_YELLOW;
+            if (cfg.markerLabelAqua) MARKER_LABEL_AQUA = parseInt(cfg.markerLabelAqua,10) || MARKER_LABEL_AQUA;
+            if (cfg.solveA3ImageIndexFromBottom) SOLVE_NUM_30sec = parseInt(cfg.solveA3ImageIndexFromBottom,10) || SOLVE_NUM_30sec;
+            if (cfg.solveA3OOffsetFrames) SOLVEA3_OFFSET = parseInt(cfg.solveA3OOffsetFrames,10) || SOLVEA3_OFFSET;
+            if (cfg.solveA3EndshotFromC3Frames) ENDSHOT_OFF_30SEC = parseInt(cfg.solveA3EndshotFromC3Frames,10) || ENDSHOT_OFF_30SEC;
+          }
+        }
+      } catch(ee) {}
     try {
       runOrchestrator(preserveGaps, is60Sec, solveA3);
       return "OK";

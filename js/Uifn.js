@@ -340,7 +340,7 @@ const updatedData = { ...loadedPreset, updatedAt: nowISO(), placeholders: { data
         await evalScriptPromise(`$._ext.writeTextFile("presets_index.json", '${escapeForJSX(JSON.stringify(presetsIndex))}')`);
         loadedPreset = { ...updatedData, folder };
         closeSaveConfirmModal();
-        showToast("Changes saved successfully!");
+        showToast("Changes saved successfully!🙌");
     } catch(e) { showToast("Save failed"); }
 }
 
@@ -414,7 +414,10 @@ async function loadDataIntoForm(data, imagePlaceholders = [], folder, ccExtraIma
 
 // CC Extra images (UI) - restore previews if preset has them
 try {
+    // IMPORTANT: keep window.ccExtraImages in sync, otherwise stale CC images can leak
+    // into Apply Content (and therefore CC Attribution) even when the UI looks cleared.
     ccExtraImages = [];
+    try { if (typeof window !== 'undefined') window.ccExtraImages = []; } catch(_) {}
     const ccList = Array.isArray(ccExtraImagePlaceholders) ? ccExtraImagePlaceholders : [];
     if (ccList.length > 0 && baseDirPath && folder) {
         ccList.forEach((m) => {
@@ -425,6 +428,7 @@ try {
             ccExtraImages.push({ id: newId ? newId() : (Date.now().toString(36)+Math.random().toString(36).slice(2)), name: m.fileName, path: fullLocalPath, relPath: m.relPath, fromPreset: true, dataUrl: "", fileUrl: fileUrl });
         });
     }
+    try { if (typeof window !== 'undefined') window.ccExtraImages = ccExtraImages; } catch(_) {}
     if (typeof renderCCExtraImages === 'function') renderCCExtraImages();
 } catch(e) {}
 
@@ -569,7 +573,7 @@ async function confirmDeletePreset(id) {
 
 function closeDeleteModal() { document.getElementById('delete-confirm-modal').classList.add('hidden'); }
 
-async function loadGridsFromDisk() {
+async function loadGridsFromDisk(deletedGridId) {
     try {
         if(!baseDirPath) return;
         const res = await evalScriptPromise("$._ext.getGridFiles()");
@@ -577,8 +581,24 @@ async function loadGridsFromDisk() {
     } catch(e) { availableGrids = []; }
     if(typeof generateGridButtons === 'function') generateGridButtons();
     if (availableGrids.length > 0) {
-        if (!activeGrid || !availableGrids.find(g => g.id === activeGrid)) drawGrid(availableGrids[0].id);
-        else drawGrid(activeGrid);
+        const stillExists = !!activeGrid && !!availableGrids.find(g => g.id === activeGrid);
+        if (stillExists) {
+            drawGrid(activeGrid);
+            return;
+        }
+
+        // If active grid no longer exists (common after delete), pick the "previous" grid.
+        // Requirement: If user deletes button 7, active should become 6 (or nearest previous).
+        // If nothing previous exists, fall back to the first available.
+        const sorted = availableGrids.slice().sort((a,b) => (a.id||0) - (b.id||0));
+        let nextActive = sorted[0].id;
+        const delId = Number(deletedGridId);
+        if (!isNaN(delId)) {
+            const prev = sorted.filter(g => Number(g.id) < delId).pop();
+            if (prev && prev.id !== undefined && prev.id !== null) nextActive = prev.id;
+        }
+        activeGrid = nextActive;
+        drawGrid(nextActive);
     } else {
         const cg = document.getElementById('current-grid');
         if(cg) cg.innerHTML = '<span class="text-gray-500 text-sm">No grids found.</span>';
@@ -589,8 +609,8 @@ function drawGrid(gridId) {
     activeGrid = gridId;
     document.querySelectorAll('#grid-buttons button').forEach(btn => {
         if(btn.innerText === "+") return;
-        btn.classList.toggle('bg-blue-600', btn.id === `grid-btn-${gridId}`);
-        btn.classList.toggle('bg-blue-500', btn.id !== `grid-btn-${gridId}`);
+        // Active state should be very dark (near black-blue) while keeping hover styling unchanged.
+        btn.classList.toggle('grid-btn-active', btn.id === `grid-btn-${gridId}`);
     });
     const gridContainer = document.getElementById('current-grid');
     const gridData = availableGrids.find(g => g.id === gridId);
@@ -627,7 +647,7 @@ async function requestDeleteGrid(id, fileName) {
                 const res = await evalScriptPromise(`$._ext.deleteGridFile("${fileName}")`);
                 if (res === "SUCCESS") {
                     closeDeleteModal();
-                    await loadGridsFromDisk();
+                    await loadGridsFromDisk(id);
                     showToast("Grid deleted.");
                 }
             } catch(e) { showToast("Delete failed"); }
@@ -672,7 +692,7 @@ async function loadActiveGridPreset() {
             showToast(`Grid ${activeGrid} loaded in AE!`);
             // Requirement: After loading preset, auto-run Gen GridNum with 0.05s delay
             setTimeout(async () => {
-                try { await evalScriptPromise("$._ext.genGridNum()"); } catch (e) {}
+                try { await evalScriptPromise(`$._ext.genGridNum("${escapeForJSX(JSON.stringify(savedSettings))}")`); } catch (e) {}
             }, 50);
         } else {
             showToast((res && res.toString()) || "Load failed");
@@ -714,10 +734,12 @@ function saveSettings() {
     // Persist ALL remaining sections the same way as the first two sections.
     const pairs = [
         // Comp names
+        ['set-comp-maincomp','compMainComp'],
         ['set-comp-main',   'compMain'],
         ['set-comp-qa',     'compQa'],
         ['set-comp-grid',   'compGrid'],
         ['set-comp-answers','compAnswers'],
+        ['set-comp-cc','compCC'], ['set-comp-keypad','compKeypad'], ['set-comp-clue','compClue'], ['set-comp-question','compQuestion'], ['set-comp-endshot','compEndshot'], ['set-comp-image','compImage'],
 
         // Layer names
         ['set-layer-ctrl',       'layerCtrl'],
@@ -726,13 +748,19 @@ function saveSettings() {
         ['set-layer-a',          'layerA'],
         ['set-layer-tile',       'layerTile'],
         ['set-layer-parent',     'layerParent'],
+        ['set-layer-ans-lmt','layerAnsLmt'], ['set-layer-tap-sfx','layerTapSfx'],
 
         // Effect / property names
         ['set-fx-num',     'fxNum'],
         ['set-fx-row',     'fxRow'],
         ['set-fx-col',     'fxCol'],
         ['set-fx-rot',     'fxRot'],
-        ['set-fx-letter',  'fxLetter']
+        ['set-fx-letter',  'fxLetter'],
+        ['set-af-base','afBaseFrames'], ['set-af-per-letter','afPerLetterFrames'], ['set-letter-gap','letterGapFrames'],
+        ['set-fq-f1','fqFramesF1'], ['set-fq-f2','fqFramesF2'], ['set-fq-other','fqFramesOther'],
+        ['set-limit-30','limit30sTo'], ['set-limit-60','limit60sTo'],
+        ['set-marker-yellow','markerLabelYellow'], ['set-marker-aqua','markerLabelAqua'],
+        ['set-solvea3-index','solveA3ImageIndexFromBottom'], ['set-solvea3-o-offset','solveA3OOffsetFrames'], ['set-solvea3-endshot','solveA3EndshotFromC3Frames']
     ];
 
     pairs.forEach(([id, key]) => {
@@ -832,41 +860,6 @@ function collectAndApplyContent() {
             } else {
                 showToast("Applied to AE.");
 
-                // -------------------------------------------------------------
-                // ALSO APPLY CC ATTRIBUTION
-                // Requirement: Apply Content should trigger CCattribution.jsx too,
-                // and CCattribution.jsx must be (re)read on every Apply Content.
-                // We send an ordered list: Q1..Q6 images, then CC extra images (7..N).
-                // -------------------------------------------------------------
-                try {
-                    var ccPaths = [];
-                    for (var qi = 1; qi <= 6; qi++) {
-                        var p = (questionImages && questionImages[qi] && questionImages[qi].path) ? questionImages[qi].path : "";
-                        if (p) ccPaths.push(p);
-                    }
-                    var extra = (ccExtraImages || []).map(function (it) {
-                        return (it && it.path) ? it.path : "";
-                    }).filter(function (s) { return !!s; });
-                    ccPaths = ccPaths.concat(extra);
-
-                    // Always re-eval the CCattribution.jsx file before calling, to avoid stale loads.
-                    var extensionRoot = csInterface.getSystemPath(SystemPath.EXTENSION);
-                    var ccJsxPath = (extensionRoot + '/jsx/CCattribution.jsx').replace(/\\/g, '/');
-                    csInterface.evalScript('$.evalFile("' + ccJsxPath + '")', function () {
-                        ensureHostFunctions(["CCAttribution_applyFromCEP"], function () {
-                            var cmdCC = '$._ext.CCAttribution_applyFromCEP("' + escapeForJSX(JSON.stringify({ imagePaths: ccPaths })) + '")';
-                            csInterface.evalScript(cmdCC, function (ccRes) {
-                                if (ccRes && String(ccRes).indexOf("ERROR") === 0) {
-                                    console.error("CC Attribution error:", ccRes);
-                                    showToast("CC attribution error: " + ccRes, "error");
-                                }
-                            });
-                        });
-                    });
-                } catch (ccErr) {
-                    console.error(ccErr);
-                }
-
                 // Run AdjustMarkerKeypad based on UI checkboxes (Preserve / 60 sec / Solve A3)
                 try {
                     const preserveEl = document.getElementById("set-chk-preserve");
@@ -880,7 +873,8 @@ function collectAndApplyContent() {
                     // Slight delay helps AE settle after content placement
                     setTimeout(() => {
                         ensureHostFunctions(["adjustMarkerKeypad"], function () {
-                            const cmd2 = `$._ext.adjustMarkerKeypad(${preserve}, ${is60}, ${solveA3})`;
+                            const novaCfg = escapeForJSX(JSON.stringify(savedSettings));
+                            const cmd2 = `$._ext.adjustMarkerKeypad(${preserve}, ${is60}, ${solveA3}, "${novaCfg}")`;
                             csInterface.evalScript(cmd2, (res2) => {
                                 if (res2 && res2.toString().indexOf("ERROR:") === 0) {
                                     console.error("AdjustMarkerKeypad error:", res2);

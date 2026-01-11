@@ -12,8 +12,8 @@
 
     <!-- PROFESSIONAL TOAST NOTIFICATION CONTAINER -->
     <div id="toast-notification" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] hidden transition-all duration-300 pointer-events-none opacity-0">
-        <div class="card-bg px-8 py-3 rounded-full border border-blue-500/40 shadow-[0_0_40px_rgba(0,0,0,0.5)] backdrop-blur-md">
-            <span id="toast-message" class="text-sm font-semibold text-white tracking-wide"></span>
+        <div class="toast-bg px-8 py-3">
+            <span id="toast-message" class="text-sm font-semibold text-black tracking-wide"></span>
         </div>
     </div>
 
@@ -151,7 +151,6 @@
         <div class="card-bg rounded-2xl shadow-2xl w-full max-w-[min(80vw,80vh)] aspect-square flex flex-col border border-slate-700/50 transform transition-all duration-300 scale-100">
             
             <div class="flex items-center space-x-2 p-6 border-b border-slate-700 flex-shrink-0" style="overflow: visible;">
-                <!-- Gear icon (unclipped + correct path) -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white settings-gear-icon flex-shrink-0" viewBox="-1 -1 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="overflow: visible;">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -168,11 +167,8 @@
                         </svg>
                         <span>Pick Presets Folder</span>
                     </button>
-                    <!-- PATH LABEL (In gray, next to button) -->
                     <span id="basePathLabel" class="text-gray-500 font-medium text-sm overflow-hidden text-ellipsis whitespace-nowrap">/DTC_Presets</span>
                 </div>
-
-                <!-- Edit Names toggle removed (each section is always editable; reset buttons restore defaults). -->
 
                 <!-- 1. FRENZY SETTINGS -->
                 <div class="space-y-4">
@@ -208,7 +204,6 @@
                         </div>
                     </div>
 
-                    <!-- AUTO FRENZY LETTER COUNTS -->
                     <h4 class="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1 pl-1 mt-4">AUTO FRENZY LETTER COUNTS</h4>
                     
                     <div class="flex justify-between items-center px-1">
@@ -258,7 +253,6 @@
                     </div>
                     <div class="grid grid-cols-1 gap-3">
                         <label class="custom-checkbox text-sm text-gray-300">
-                            <!-- Checked by default -->
                             <input type="checkbox" id="set-chk-replace" checked class="settings-input">
                             <span class="box"></span>
                             REPLACE_IMAGE
@@ -275,13 +269,17 @@
 
                 <!-- COMP NAMES SECTION -->
                 <div class="space-y-3">
-	                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between">
                         <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">COMP NAMES :</h3>
                         <button id="reset-comp-names" type="button" onclick="resetSettingsSection('compNames')" class="reset-btn" title="Reset Comp Names">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v7h-7"/></svg>
                         </button>
-	                    </div>
+                    </div>
                     <div class="grid grid-cols-1 gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_MAIN :</span>
+                            <input type="text" id="set-comp-maincomp" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">COMP_GRID_MAIN :</span>
                             <input type="text" id="set-comp-main" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
@@ -298,6 +296,30 @@
                             <span class="text-gray-300 text-sm">COMP_ANSWERS_NAME :</span>
                             <input type="text" id="set-comp-answers" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_CC :</span>
+                            <input type="text" id="set-comp-cc" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_KEYPAD :</span>
+                            <input type="text" id="set-comp-keypad" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_CLUE :</span>
+                            <input type="text" id="set-comp-clue" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_QUESTION :</span>
+                            <input type="text" id="set-comp-question" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_ENDSHOT :</span>
+                            <input type="text" id="set-comp-endshot" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">COMP_IMAGE :</span>
+                            <input type="text" id="set-comp-image" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
                     </div>
                 </div>
 
@@ -305,12 +327,12 @@
 
                 <!-- LAYER NAMES SECTION -->
                 <div class="space-y-3">
-	                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between">
                         <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">LAYER NAMES :</h3>
                         <button id="reset-layer-names" type="button" onclick="resetSettingsSection('layerNames')" class="reset-btn" title="Reset Layer Names">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v7h-7"/></svg>
                         </button>
-	                    </div>
+                    </div>
                     <div class="grid grid-cols-1 gap-2">
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_CONTROLLER :</span>
@@ -332,17 +354,24 @@
                             <span class="text-gray-300 text-sm">LAYER_TILE_SOURCE :</span>
                             <input type="text" id="set-layer-tile" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
-                        <!-- NEW LINE: LAYER_GRID_PARENT -->
                         <div class="flex items-center justify-between">
                             <span class="text-gray-300 text-sm">LAYER_GRID_PARENT :</span>
                             <input type="text" id="set-layer-parent" value="PARENT" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">LAYER_ANS_LMT :</span>
+                            <input type="text" id="set-layer-ans-lmt" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-300 text-sm">LAYER_TAP_SFX :</span>
+                            <input type="text" id="set-layer-tap-sfx" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
                     </div>
                 </div>
 
                 <div class="border-t border-slate-700/50 my-2"></div>
 
-                <!-- EFFECT NAMES SECTION -->
+                <!-- EFFECT NAMES SECTION (Moved after Layer Names) -->
                 <div class="space-y-3">
                     <div class="flex items-center justify-between">
                         <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">EFFECT NAMES :</h3>
@@ -371,6 +400,33 @@
                             <span class="text-gray-300 text-sm">ANSWERS_LETTER_PREFIX :</span>
                             <input type="text" id="set-fx-letter" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2">
                         </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-700/50 my-2"></div>
+
+                <!-- LIMITS & CONSTANTS SECTION (Re-labeled and re-ordered) -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-blue-400 font-semibold tracking-wider text-sm uppercase">LIMITS &amp; CONSTANTS :</h3>
+                        <button id="reset-limits" type="button" onclick="resetSettingsSection('limits')" class="reset-btn" title="Reset Limits &amp; Constants">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v7h-7"/></svg>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 gap-2">
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">AF_BASE_FRAMES_DEFAULT :</span><input type="text" id="set-af-base" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">AF_PER_LETTER_FRAMES :</span><input type="text" id="set-af-per-letter" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">LETTER_GAP_FRAMES :</span><input type="text" id="set-letter-gap" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">FQ_FRAMES_F1 :</span><input type="text" id="set-fq-f1" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">FQ_FRAMES_F2 :</span><input type="text" id="set-fq-f2" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">FQ_FRAMES_OTHER :</span><input type="text" id="set-fq-other" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">LIMIT_30S_TO :</span><input type="text" id="set-limit-30" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">LIMIT_60S_TO :</span><input type="text" id="set-limit-60" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">MARKER_LABEL_YELLOW :</span><input type="text" id="set-marker-yellow" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">MARKER_LABEL_AQUA :</span><input type="text" id="set-marker-aqua" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">SOLVE_NUM_30S :</span><input type="text" id="set-solvea3-index" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">SOLVEA3_OFFSET :</span><input type="text" id="set-solvea3-o-offset" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
+                        <div class="flex items-center justify-between"><span class="text-gray-300 text-sm">ENDSHOT_OFF_30SEC :</span><input type="text" id="set-solvea3-endshot" class="settings-input w-48 text-center text-sm rounded-md py-1 px-2"></div>
                     </div>
                 </div>
             </div>
@@ -425,11 +481,11 @@
         <div class="card-bg p-6 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
             <h3 class="text-xl font-bold mb-4 text-yellow-400">Confirm Save Changes</h3>
             <p id="save-confirm-message" class="text-gray-300 mb-6"></p>
-            <div class="flex justify-end space-x-4">
-                <button onclick="closeSaveConfirmModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150">
+            <div class="flex justify-end space-x-4\">
+                <button onclick="closeSaveConfirmModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150\">
                     Cancel
                 </button>
-                <button onclick="saveChangesToPreset()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                <button onclick="saveChangesToPreset()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200\">
                     OK
                 </button>
             </div>
@@ -437,17 +493,17 @@
     </div>
 
     <!-- MODAL: SAVE GRID -->
-    <div id="save-grid-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50">
-        <div class="card-bg p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100">
-            <h3 class="text-xl font-bold mb-4 text-white">Save Grid from AE?</h3>
-            <p class="text-gray-300 mb-6">
-                This will find the <b>"Grid"</b> composition in After Effects, take a snapshot of frame 0, and save it as a new grid preset.
+    <div id="save-grid-modal" class="fixed inset-0 hidden modal-overlay flex items-center justify-center p-4 z-50\">
+        <div class="card-bg p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100\">
+            <h3 class="text-xl font-bold mb-4 text-white\">Save Grid from AE?</h3>
+            <p class="text-gray-300 mb-6\">
+                This will find the <b>\"Grid\"</b> composition in After Effects, take a snapshot of frame 0, and save it as a new grid preset.
             </p>
-            <div class="flex justify-end space-x-4">
-                <button id="cancelSaveGridBtn" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150">
+            <div class="flex justify-end space-x-4\">
+                <button id="cancelSaveGridBtn" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition duration-150\">
                     Cancel
                 </button>
-                <button id="confirmSaveGridBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                <button id="confirmSaveGridBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200\">
                     Save GRID from Comp
                 </button>
             </div>
